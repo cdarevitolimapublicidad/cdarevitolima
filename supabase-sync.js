@@ -1,5 +1,5 @@
-const SUPABASE_URL='https://acigzhssjxzfvzaaythl.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjaWd6aHNzanh6ZnZ6YWF5dGhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMTIwNTQsImV4cCI6MjEwNTU4ODA1NH0.Fn-Ayehm_k36cGFWpkiL0fmwbVz2rInoA3rf5u0FwR4';
+const SUPABASE_URL='https://lskgxaufwecslzkslxzq.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxza2d4YXVmd2Vjc2x6a3NseHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwOTA4NDcsImV4cCI6MjEwNzY2Njg0N30.94xDTi-3Dqvmrl9lX0gOCjTWC5OeXsmHjSjVWEPrwkE';
 let SB=null;
 try{SB=supabase.createClient(SUPABASE_URL,SUPABASE_KEY)}catch(e){console.warn('SB init:',e)}
 
