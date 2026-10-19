@@ -537,9 +537,6 @@ document.addEventListener('click', e=>{
   ov.onclick = ()=>{ side.classList.remove('open'); ov.classList.remove('on'); };
 });
 
-// Carga inicial desde Supabase
-(async()=>{const ok=await sbLoad();if(ok)console.log('🔄 DB cargada desde Supabase')})();
-
 /* ---------- REVEAL ---------- */
 .rv{opacity:0;transform:translateY(20px);transition:opacity .55s ease,transform .55s ease}
 .rv.in{opacity:1;transform:none}
