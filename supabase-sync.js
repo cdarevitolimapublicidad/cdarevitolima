@@ -7,10 +7,13 @@
 const SUPABASE_URL = 'https://lskgxaufwecslzkslxzq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxza2d4YXVmd2Vjc2x6a3NseHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwOTA4NDcsImV4cCI6MjEwNzY2Njg0N30.94xDTi-3Dqvmrl9lX0gOCjTWC5OeXsmHjSjVWEPrwkE';
 
-/* true  = además de usuario y contraseña pide un código enviado al correo de la persona.
-   Requiere SMTP propio en Supabase y la plantilla "Magic Link" con {{ .Token }}.
-   NO lo apagues: como usuario y contraseña pueden ser iguales, este código es la protección real. */
-const ADMIN_EMAIL_2FA = true;
+/* Código de verificación por correo.
+   false = se entra solo con usuario y contraseña (estado TEMPORAL).
+   true  = además pide un código que llega al correo de la persona.
+   Para volver a activarlo: configurar el SMTP en Supabase (Authentication → Emails),
+   pegar la plantilla "Magic link" con {{ .Token }} y cambiar esto a true.
+   Con usuario = contraseña, este código es la protección real. */
+const ADMIN_EMAIL_2FA = false;
 /* Minutos de inactividad antes de cerrar la sesión del administrativo. */
 const ADMIN_IDLE_MIN = 30;
 
