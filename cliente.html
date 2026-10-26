@@ -895,7 +895,7 @@
           <a href="#" class="logo" data-go="pub"><img data-logo src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="CDA Revitolima"><span class="logo-txt">CDA REVITOLIMA<small>Portal cliente</small></span></a>
           <h1 class="dsp">Ingresa a tu portal</h1>
           <p>Usa tu número de documento y la placa de tu vehículo.</p>
-          <div class="demo-hint"><b>Prototipo de demostración</b>Ingresa con documento <b style="display:inline">1110512345</b> y placa <b style="display:inline">GRT41E</b>. En producción esto usará autenticación segura con contraseña y recuperación de acceso.</div>
+          <div class="note-box" style="margin-bottom:18px"><b>¿Cómo ingreso?</b>Con el documento y la placa que registraste en el CDA. Si aún no tienes cita, agéndala en la página principal y tu acceso queda creado.</div>
           <form id="cliForm" novalidate>
             <div style="margin-bottom:14px"><label class="flabel" for="clDoc">Número de documento</label><input id="clDoc" class="finput" inputmode="numeric" placeholder="Cédula" autocomplete="username"></div>
             <div style="margin-bottom:8px"><label class="flabel" for="clPlate">Placa del vehículo</label><input id="clPlate" class="finput mono" maxlength="7" placeholder="ABC123" style="text-transform:uppercase"></div>
@@ -988,9 +988,9 @@
             <div id="adStep1">
               <div class="login-field">
                 <label class="flabel" for="adUser">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2.2"/><path d="m3 7 9 6 9-6"/></svg>
-                  Correo electrónico</label>
-                <input id="adUser" class="finput" type="email" placeholder="tucorreo@dominio.com" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1"/></svg>
+                  Usuario</label>
+                <input id="adUser" class="finput" type="text" placeholder="Tu usuario" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
               </div>
               <div class="login-field" style="margin-bottom:8px">
                 <label class="flabel" for="adPass">
@@ -1006,7 +1006,7 @@
                 <input id="adCode" class="finput mono" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456">
               </div>
             </div>
-            <div class="ferr" id="adErr">Correo o contraseña incorrectos.</div>
+            <div class="ferr" id="adErr">Usuario o contraseña incorrectos.</div>
             <button type="submit" class="btn btn-p btn-block">Ingresar al portal</button>
             <div class="login-secure">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>

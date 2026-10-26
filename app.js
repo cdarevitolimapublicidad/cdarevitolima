@@ -1600,7 +1600,7 @@ function resetAdminForm(){
   const b=$('#admForm button[type=submit]'); b.disabled=false; b.textContent='Ingresar al portal';
 }
 function enterAdmin(p){
-  const u={id:p.email,username:p.email,name:p.name,role:p.role,advisorId:p.advisorId||undefined};
+  const u={id:p.email,username:p.username||p.email,name:p.name,role:p.role,advisorId:p.advisorId||undefined};
   window.CDA_STAFF=true;
   admIn=true; currentUser=u; lastActivityAt=Date.now();
   $('#adErr').classList.remove('on');
@@ -1634,7 +1634,7 @@ $('#admForm').addEventListener('submit',async e=>{
       const r=await sbAdminLogin($('#adUser').value,$('#adPass').value);
       if(r.needCode){
         adPending=r.email; $('#adStep1').style.display='none'; $('#adStep2').style.display='';
-        $('#adCodeMail').textContent=r.email; $('#adErr').classList.remove('on'); $('#adCode').focus();
+        $('#adCodeMail').textContent=r.hint; $('#adErr').classList.remove('on'); $('#adCode').focus();
       }else{
         btn.textContent='Cargando datos…';
         await startAdminSession(r.profile); resetAdminForm();
@@ -1642,7 +1642,7 @@ $('#admForm').addEventListener('submit',async e=>{
     }
   }catch(err){
     const m=String(err&&err.message||'');
-    adErr(m==='CREDENCIALES'?'Correo o contraseña incorrectos.'
+    adErr(m==='CREDENCIALES'?'Usuario o contraseña incorrectos.'
       :m==='SIN_ACCESO'?'Tu correo no tiene acceso al portal. Pídele a gerencia que lo habilite.'
       :m==='CODIGO_INVALIDO'?'El código no es correcto o ya venció.'
       :m==='CODIGO_NO_ENVIADO'?'No pudimos enviar el código al correo. Intenta de nuevo en unos minutos.'
@@ -1840,20 +1840,6 @@ function renderAdmin(){
       <div class="panel-b" style="display:flex;flex-direction:column;gap:14px">
 
         <div class="intg">
-          <div class="intg-logo"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2.5" fill="#fff" stroke="#4285F4" stroke-width="1.8"/><path d="M3 9h18" stroke="#4285F4" stroke-width="1.8"/><path d="M8 2v4M16 2v4" stroke="#4285F4" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="17.5" font-size="7" text-anchor="middle" fill="#4285F4" font-family="Arial" font-weight="bold">31</text></svg></div>
-          <div style="flex:1"><b>Google Calendar</b>
-            <p>Cada cita agendada se crea como evento en el calendario del centro, con recordatorio automático. Si mueves el evento en Google, la cita se actualiza aquí.</p>
-            <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap">
-              <span class="pill pill-warn">Requiere conexión</span>
-              <span class="pill pill-neu">Sincronización en ambos sentidos</span>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-            <button class="btn btn-p btn-sm" id="gcalBtn">Conectar</button>
-          </div>
-        </div>
-
-        <div class="intg">
           <div class="intg-logo"><svg viewBox="0 0 24 24" fill="#25D366"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/></svg></div>
           <div style="flex:1"><b>WhatsApp Business</b>
             <p>Envío automático de confirmaciones de cita, recordatorios de vencimiento y gestión de cartera por plantillas aprobadas.</p>
@@ -1878,12 +1864,12 @@ function renderAdmin(){
         <div class="intg">
           <div class="intg-logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3ECF8E" stroke-width="1.8"><path d="M12 2 4 13h7l1 9 8-11h-7z"/></svg></div>
           <div style="flex:1"><b>Base de datos (Supabase)</b>
-            <p>Almacenamiento permanente de clientes, vehículos, citas y cartera. Sin esta conexión, los datos se reinician al recargar la página.</p>
+            <p>Almacenamiento permanente de clientes, vehículos, citas, caja y cartera. Cada cambio se guarda solo y se comparte entre los equipos.</p>
             <div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap">
-              <span class="pill pill-dan">Sin conectar · modo demostración</span>
+              <span class="pill pill-ok">Conectado · los datos se guardan automáticamente</span>
             </div>
           </div>
-          <button class="btn btn-o btn-sm" data-intg="Supabase">Ver guía</button>
+          <button class="btn btn-o btn-sm" disabled>Activo</button>
         </div>
       </div></div>`;
   bindIntg();
@@ -2156,7 +2142,7 @@ function renderAgenda(){
       ${kpi('Sin confirmar',pnd,'alert','Requieren contacto',pnd?'warn':'')}
       ${kpi('Inasistencias',noShow,'alert','Sin llegada confirmada',noShow?'alert':'')}
       ${kpi('Ocupación',ocup?Math.round(inView.filter(a=>a.status!=='Cancelada').length/ocup*100)+'%':'0%','chart',`Sobre ${ocup} turnos disponibles`)}
-      ${kpi('Google Calendar',gcalOn?'Conectado':'Sin conectar','clock',gcalOn?'Sincronización activa':'Los eventos no se sincronizan',gcalOn?'':'warn')}
+      
     </div>
     <div class="panel">
       <div class="panel-h">
@@ -2184,7 +2170,7 @@ function renderAgenda(){
           <span><i style="background:var(--ink-3)"></i>Completada</span>
           <span><i style="background:var(--danger)"></i>Inasistente / Cancelada</span>
         </div>
-        ${gcalOn?'':`<div class="note-box" style="margin-top:16px"><b>Google Calendar sin conectar</b>Actívalo en Integraciones para que cada cita se cree como evento y el equipo la vea desde su celular.</div>`}
+        
       </div>
     </div>`;
 
@@ -2222,7 +2208,7 @@ function renderAgenda(){
         advisorId:$('#nwAdv').value||null,confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:false});
       logAct(`Cita registrada desde la agenda · ${pl} · ${fmtDate(d)} ${t}`);
       trackAction('crear-cita');
-      closeModal(); renderAdmin(); toast(gcalOn?'Cita creada y enviada a Google Calendar':'Cita creada');
+      closeModal(); renderAdmin(); toast('Cita creada');
     });
     $$('[data-mclose]').forEach(x=>x.addEventListener('click',closeModal));
   }));
@@ -2264,7 +2250,7 @@ function openApt(id){
     logAct(`Cita actualizada · ${a.plate} → ${a.status}`);
     trackAction('editar-cita');
     closeModal(); renderAdmin();
-    toast(gcalOn?'Cita actualizada y sincronizada con Google Calendar':'Cita actualizada');
+    toast('Cita actualizada');
   });
   $('#stDel').addEventListener('click',()=>{
     modal('¿Eliminar esta cita?',`<p style="font-size:.9rem;color:var(--ink-2)">Se eliminará la cita de <b>${a.name}</b> del ${fmtDate(a.date)} a las ${a.time}. Esta acción no se puede deshacer.</p>`,
@@ -2361,32 +2347,10 @@ function printArqueoPDF(dateStr){
 /* ---------- AGENDA / CALENDARIO ---------- */
 
 function bindIntg(){
-  $('#gcalBtn')?.addEventListener('click',()=>{
-    if(gcalOn){
-      gcalOn=false; logAct('Google Calendar desconectado'); renderAdmin(); toast('Google Calendar desconectado'); return;
-    }
-    modal('Conectar Google Calendar',`
-      <p style="font-size:.88rem;color:var(--ink-2);margin-bottom:15px">Así funcionará la sincronización una vez conectada la cuenta del centro:</p>
-      <div class="tl">
-        <div class="tl-i"><b>Cita agendada en la web</b><p>Se crea automáticamente un evento en el calendario del centro con placa, cliente y teléfono.</p></div>
-        <div class="tl-i"><b>Cambio en Google Calendar</b><p>Si alguien mueve o borra el evento, la cita se actualiza en este panel y en el portal del cliente.</p></div>
-        <div class="tl-i"><b>Recordatorio automático</b><p>Google envía el aviso al equipo antes de cada turno.</p></div>
-        <div class="tl-i"><b>Turnos bloqueados</b><p>Si el centro crea un evento manual, ese horario deja de aparecer disponible en la web.</p></div>
-      </div>
-      <div class="note-box" style="margin-top:16px"><b>Qué se necesita</b>Cuenta de Google del centro, un proyecto en Google Cloud con la API de Calendar habilitada y el backend en Supabase para guardar el token de acceso de forma segura.</div>
-      <div class="demo-hint" style="margin-top:14px"><b>Modo demostración</b>Al continuar se simula el estado “conectado” para que veas cómo se comporta el panel. La conexión real se activa con el backend.</div>`,
-      `<button class="btn btn-o" data-mclose>Cerrar</button><button class="btn btn-p" id="gcalGo">Simular conexión</button>`);
-    $('#gcalGo').addEventListener('click',()=>{
-      gcalOn=true; logAct('Google Calendar conectado (simulado)');
-      closeModal(); renderAdmin(); toast('Google Calendar conectado · las citas se sincronizarán');
-    });
-    $$('[data-mclose]').forEach(x=>x.addEventListener('click',closeModal));
-  });
   $$('[data-intg]').forEach(b=>b.addEventListener('click',()=>{
     const n=b.dataset.intg;
     const info={
-      'WhatsApp Business':'Requiere una cuenta de WhatsApp Business API (a través de Meta o un proveedor como Twilio o 360dialog) y plantillas de mensaje aprobadas por Meta. Con eso, el sistema envía confirmaciones y recordatorios sin intervención manual.',
-      'Supabase':'Supabase da base de datos PostgreSQL, autenticación con roles y almacenamiento de archivos. Es el paso que convierte este prototipo en un sistema real con datos permanentes.'
+      'WhatsApp Business':'Requiere una cuenta de WhatsApp Business API (a través de Meta o un proveedor como Twilio o 360dialog) y plantillas de mensaje aprobadas por Meta. Con eso, el sistema envía confirmaciones y recordatorios sin intervención manual.'
     }[n]||'';
     modal(n,`<p style="font-size:.9rem;color:var(--ink-2)">${info}</p>`,`<button class="btn btn-p" data-mclose>Entendido</button>`);
     $$('[data-mclose]').forEach(x=>x.addEventListener('click',closeModal));
@@ -3113,7 +3077,7 @@ function generarGuiaCredenciales(){
       </div>
       <div class="cred-bd">
         <div class="cred-person">${u.name}</div>
-        <div class="cred-row"><span>Correo de acceso</span><b>${u.username}</b></div>
+        <div class="cred-row"><span>Usuario</span><b>${u.username}</b></div>
         <div class="cred-row"><span>Contraseña</span><b>Personal · la define cada usuario</b></div>
         <div class="cred-acc"><span>Módulos habilitados</span><p>${r.nav.map(k=>NAV_META[k]?NAV_META[k].label:k).join(' · ')}</p></div>
       </div></div>`;}).join('');
@@ -3399,7 +3363,7 @@ function generarGuiaCredenciales(){
       </div>
       <div class="cred-bd">
         <div class="cred-person">${u.name}</div>
-        <div class="cred-row"><span>Correo de acceso</span><b>${u.username}</b></div>
+        <div class="cred-row"><span>Usuario</span><b>${u.username}</b></div>
         <div class="cred-row"><span>Contraseña</span><b>Personal · la define cada usuario</b></div>
         <div class="cred-acc"><span>Módulos habilitados</span><p>${r.nav.map(k=>NAV_META[k]?NAV_META[k].label:k).join(' · ')}</p></div>
       </div></div>`;}).join('');

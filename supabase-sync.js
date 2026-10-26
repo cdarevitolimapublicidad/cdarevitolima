@@ -7,10 +7,10 @@
 const SUPABASE_URL = 'https://lskgxaufwecslzkslxzq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxza2d4YXVmd2Vjc2x6a3NseHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwOTA4NDcsImV4cCI6MjEwNzY2Njg0N30.94xDTi-3Dqvmrl9lX0gOCjTWC5OeXsmHjSjVWEPrwkE';
 
-/* true  = además de la contraseña pide un código de 6 dígitos enviado al correo.
+/* true  = además de usuario y contraseña pide un código enviado al correo de la persona.
    Requiere SMTP propio en Supabase y la plantilla "Magic Link" con {{ .Token }}.
-   Déjalo en false hasta tener eso configurado, o nadie podrá entrar. */
-const ADMIN_EMAIL_2FA = false;
+   NO lo apagues: como usuario y contraseña pueden ser iguales, este código es la protección real. */
+const ADMIN_EMAIL_2FA = true;
 /* Minutos de inactividad antes de cerrar la sesión del administrativo. */
 const ADMIN_IDLE_MIN = 30;
 
@@ -72,9 +72,19 @@ const sbPortalActualizar = (doc, placa, tipo, id, cambios) =>
   sbRpc('portal_actualizar', { p_doc: doc, p_placa: placa, p_tipo: tipo, p_id: id, p_cambios: cambios });
 
 /* ---------- Acceso del administrativo (correo + contraseña) ---------- */
-async function sbAdminLogin(email, pass) {
+function sbMask(email) {
+  const [u, d] = String(email).split('@');
+  return (u || '').slice(0, 2) + '***@' + (d || '');
+}
+async function sbAdminLogin(usuario, pass) {
   if (!SB) throw new Error('SIN_CONEXION');
-  email = String(email || '').trim().toLowerCase();
+  usuario = String(usuario || '').trim();
+  if (!usuario || !pass) throw new Error('CREDENCIALES');
+  // El usuario se traduce al correo en el servidor. Si no existe devuelve uno falso,
+  // para que el mensaje de error sea idéntico en ambos casos.
+  let email;
+  try { email = String(await sbRpc('correo_de_usuario', { p_usuario: usuario })).toLowerCase(); }
+  catch (e) { throw new Error('ERROR_SERVIDOR'); }
   const { error } = await SB.auth.signInWithPassword({ email, password: pass });
   if (error) throw new Error('CREDENCIALES');
   const prof = await sbRpc('mi_perfil');
@@ -84,7 +94,7 @@ async function sbAdminLogin(email, pass) {
     await SB.auth.signOut();
     const { error: e2 } = await SB.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
     if (e2) throw new Error('CODIGO_NO_ENVIADO');
-    return { needCode: true, email };
+    return { needCode: true, email, hint: sbMask(email) };
   }
   return { profile: prof };
 }
@@ -166,7 +176,7 @@ async function sbStaffStart(profile) {
   USERS.length = 0;
   try {
     const eq = await sbRpc('listar_equipo');
-    (eq || []).forEach(x => USERS.push({ id: x.email, username: x.email, name: x.name, role: x.role, advisorId: x.advisorId }));
+    (eq || []).forEach(x => USERS.push({ id: x.email, username: x.username || x.email, name: x.name, role: x.role, advisorId: x.advisorId }));
   } catch (e) {}
 
   sbLast = maxTs; sbReady = true; sbPill('ok');
