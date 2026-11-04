@@ -70,9 +70,10 @@ const sbReservar       = (cl, veh, ap) => sbRpc('reservar_cita', { p_cliente: cl
 const sbRecordatorio   = row => sbRpc('registrar_recordatorio', { p_row: row });
 const sbSlotsOcupados  = fecha => sbRpc('slots_ocupados', { p_fecha: fecha });
 const sbConfigPublica  = () => sbRpc('config_publica');
-const sbPortalConsulta = (doc, placa) => sbRpc('portal_consulta', { p_doc: doc, p_placa: placa });
-const sbPortalActualizar = (doc, placa, tipo, id, cambios) =>
-  sbRpc('portal_actualizar', { p_doc: doc, p_placa: placa, p_tipo: tipo, p_id: id, p_cambios: cambios });
+/* Portal cliente: usuario = cédula, contraseña = cédula */
+const sbPortalIngreso = (usuario, clave) => sbRpc('portal_ingreso', { p_usuario: usuario, p_clave: clave });
+const sbPortalCambio = (usuario, clave, tipo, id, cambios) =>
+  sbRpc('portal_cambio', { p_usuario: usuario, p_clave: clave, p_tipo: tipo, p_id: id, p_cambios: cambios });
 
 /* ---------- Acceso del administrativo (correo + contraseña) ---------- */
 function sbMask(email) {

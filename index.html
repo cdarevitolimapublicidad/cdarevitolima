@@ -871,12 +871,12 @@
         <div class="login-box">
           <a href="#" class="logo" data-go="pub"><img data-logo src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="CDA Revitolima"><span class="logo-txt">CDA REVITOLIMA<small>Portal cliente</small></span></a>
           <h1 class="dsp">Ingresa a tu portal</h1>
-          <p>Usa tu número de documento y la placa de tu vehículo.</p>
-          <div class="note-box" style="margin-bottom:18px"><b>¿Cómo ingreso?</b>Con el documento y la placa que registraste en el CDA. Si aún no tienes cita, agéndala en la página principal y tu acceso queda creado.</div>
+          <p>Ingresa con tu número de cédula.</p>
+          <div class="note-box" style="margin-bottom:18px"><b>¿Cómo ingreso?</b>Tu usuario y tu contraseña son tu número de cédula, sin puntos ni espacios. Si aún no estás registrado, agenda tu cita en la página principal y tu acceso queda creado.</div>
           <form id="cliForm" novalidate>
-            <div style="margin-bottom:14px"><label class="flabel" for="clDoc">Número de documento</label><input id="clDoc" class="finput" inputmode="numeric" placeholder="Cédula" autocomplete="username"></div>
-            <div style="margin-bottom:8px"><label class="flabel" for="clPlate">Placa del vehículo</label><input id="clPlate" class="finput mono" maxlength="7" placeholder="ABC123" style="text-transform:uppercase"></div>
-            <div class="ferr" id="clErr">Los datos no coinciden con ningún cliente registrado.</div>
+            <div style="margin-bottom:14px"><label class="flabel" for="clUser">Usuario</label><input id="clUser" class="finput" inputmode="numeric" placeholder="Tu número de cédula" autocomplete="username"></div>
+            <div style="margin-bottom:8px"><label class="flabel" for="clPass">Contraseña</label><input id="clPass" class="finput" type="password" inputmode="numeric" placeholder="Tu número de cédula" autocomplete="current-password"></div>
+            <div class="ferr" id="clErr">Usuario o contraseña incorrectos.</div>
             <button type="submit" class="btn btn-p btn-block" style="margin-top:16px">Ingresar</button>
           </form>
           <p style="text-align:center;margin-top:16px;font-size:.83rem;color:var(--ink-3)">¿No puedes ingresar? <a data-wa="general" style="color:var(--green-800);font-weight:600;cursor:pointer">Escríbenos por WhatsApp</a></p>

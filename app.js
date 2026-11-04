@@ -226,7 +226,7 @@ const DB = {
       {cat:'pagos', q:'¿Qué medios de pago reciben?', a:'Recibimos <b>efectivo y tarjeta</b>, además de las opciones de financiación.'},
       {cat:'otros', q:'¿Qué es la revisión preventiva de viaje gratis?', a:'🎁 Es nuestro regalo por inscribirte en los recordatorios. Revisamos <b>llantas, frenos, luces y niveles</b> antes de que salgas a carretera, <b>sin costo</b>. Recibes un código que presentas al llegar. <i>No reemplaza la revisión técnico-mecánica obligatoria.</i>'},
       {cat:'otros', q:'¿Atienden motos y servicio público?', a:'Sí. Atendemos <b>motos</b>, <b>carros particulares</b> (incluidos eléctricos e híbridos) y <b>servicio público</b>: taxi, ambulancia, placa blanca, microbús y escolar.'},
-      {cat:'otros', q:'¿Qué es el peritaje técnico?', a:'Es un <b>informe del estado real</b> del vehículo: motor, caja, chasis, latonería y desgaste. Ideal si vas a <b>comprar o vender</b>, o si tu aseguradora lo solicita.'},
+      {cat:'otros', q:'¿Qué es el peritaje técnico?', a:'Es un <b>informe del estado real</b> del vehículo: motor, caja, chasis, latonería y desgaste. Ideal si vas a <b>comprar o vender</b>, o si tu aseguradora lo solicita. Para carros particulares estará disponible próximamente.'},
       {cat:'otros', q:'¿Mi vehículo tiene conversión a gas, hay algo especial?', a:'Sí. Si tiene <b>GNV o GLP</b> debes presentar el <b>certificado de conversión vigente</b> además de los documentos habituales.'}
     ]
   },
@@ -583,6 +583,14 @@ function servicesHTML(group){
     const det = (s.detalle&&s.detalle[group])||s.desc;
     const tm = s.tiempo&&s.tiempo[group];
     const isGift = s.id==='preventiva';
+    const soon = s.id==='peritaje' && group==='particular';
+    if(soon) return `
+    <div class="card card-h svc-card is-soon">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${SVC_ICON[s.id]||SVC_ICON.rtm}</svg></div>
+      <h3 style="margin:15px 0 7px">${s.name}</h3>
+      <p style="font-size:.89rem;color:var(--ink-2)">Muy pronto podrás solicitar el peritaje técnico para tu carro en el CDA.</p>
+      <span class="svc-tag-soon">PRÓXIMAMENTE</span>
+    </div>`;
     return `
     <div class="card card-h svc-card">
       <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${SVC_ICON[s.id]||SVC_ICON.rtm}</svg></div>
@@ -751,7 +759,8 @@ $('#bkNext').addEventListener('click',async ()=>{
     <div><span>Placa</span><span>${plate}</span></div>
     <div><span>Fecha</span><span>${fmtDate(bk.date)}</span></div>
     <div><span>Hora</span><span>${bk.time}</span></div>
-    <div><span>Estado</span><span>Pendiente de confirmación</span></div>`;
+    <div><span>Estado</span><span>Pendiente de confirmación</span></div>
+    <div><span>Portal cliente</span><span>Usuario y contraseña: tu cédula</span></div>`;
   const btnConf = $('#bkConfirmWA');
   if(btnConf){
     btnConf.href = `https://wa.me/${WA_GENERAL}?text=`+encodeURIComponent(
@@ -1030,7 +1039,7 @@ const AI_KB = () => ([
    a:`⚡ Sí atendemos <b>carros eléctricos e híbridos</b>. Son dos categorías distintas y cada una tiene su propio procedimiento de revisión.`,
    btn:{t:'Ver servicios', page:'servicios'}},
   {kw:['peritaje','avaluo','comprar carro','vender carro'],
-   a:`🔎 El <b>peritaje técnico</b> es un informe del estado real del vehículo: motor, caja, chasis, latonería y desgaste.<br><br>Ideal si vas a <b>comprar o vender</b>, o para tu aseguradora.`,
+   a:`🔎 El <b>peritaje técnico</b> es un informe del estado real del vehículo: motor, caja, chasis, latonería y desgaste.<br><br>Ideal si vas a <b>comprar o vender</b>, o para tu aseguradora.<br><br>Para <b>carros particulares</b> estará disponible <b>próximamente</b>.`,
    btn:{t:'Consultar peritaje', wa:'peritaje'}},
   {kw:['financiacion','credito','sistecredito','addi','financiar','cuotas','pagar a cuotas'],
    a:`💳 Puedes financiar tu revisión con <b>Sistecrédito</b> o <b>Addi</b>, con aprobación en minutos aquí mismo.<br><br>El estado de tu crédito queda visible en tu <b>Portal cliente</b>.`,
@@ -1096,7 +1105,7 @@ const AI_KB = () => ([
    a:`🔩 Los vehículos <b>blindados o con modificaciones estructurales</b> (cambio de motor, repotenciación) requieren tener el registro actualizado en la tarjeta de propiedad antes de la revisión.<br><br>Escríbenos con los detalles de tu caso y te orientamos. 👇`,
    btn:{t:'Consultar mi caso', wa:'general'}},
   {kw:['traspaso','vender','comprar','compraventa','avaluo'],
-   a:`🤝 Si vas a <b>comprar o vender</b> un vehículo, te recomendamos un <b>peritaje técnico</b>: te decimos el estado real antes de cerrar el negocio.<br><br>Evita sorpresas costosas después. 🔎`,
+   a:`🤝 Si vas a <b>comprar o vender</b> un vehículo, te recomendamos un <b>peritaje técnico</b>: te decimos el estado real antes de cerrar el negocio.<br><br>Evita sorpresas costosas después. 🔎<br><br>Para <b>carros particulares</b> el peritaje estará disponible <b>próximamente</b>.`,
    btn:{t:'Consultar peritaje', wa:'peritaje'}},
   {kw:['espera','cuanta gente','esta lleno','hay cola','congestion'],
    a:`⏱️ Con nuestro <b>horario continuo de 6 a.m. a 7 p.m.</b> distribuimos mejor el flujo de vehículos.<br><br>💡 <b>Tip:</b> las primeras horas de la mañana y después de las 4 p.m. suelen ser las más despejadas.`,
@@ -1180,9 +1189,8 @@ function initAssistant(){
 /* ═══════════ PORTAL CLIENTE ═══════════ */
 let cliUser=null;
 
-function loadPortalData(r,pl){
-  const own=(r.vehicles||[]).find(v=>String(v.plate).toUpperCase()===pl);
-  const main=(r.clients||[]).find(c=>own&&c.id===own.clientId)||(r.clients||[])[0];
+function loadPortalData(r){
+  const main=(r.clients||[])[0];
   if(!main) return null;
   const fix=o=>Object.assign({},o,{clientId:main.id});
   const put=(k,a)=>{ DB[k].length=0; a.forEach(x=>DB[k].push(x)); };
@@ -1196,13 +1204,13 @@ function loadPortalData(r,pl){
 }
 $('#cliForm').addEventListener('submit',async e=>{
   e.preventDefault();
-  const doc=$('#clDoc').value.trim(), pl=$('#clPlate').value.trim().toUpperCase();
+  const doc=$('#clUser').value.trim(), clave=$('#clPass').value;
   const ce=$('#clErr'); if(!ce.dataset.def) ce.dataset.def=ce.textContent;
   const btn=$('#cliForm button[type=submit]'); if(btn) btn.disabled=true;
   let cl=null;
   try{
-    const r=await sbPortalConsulta(doc,pl);
-    if(r){ cl=loadPortalData(r,pl); window.__portalKey={doc,pl}; }
+    const r=await sbPortalIngreso(doc,clave);
+    if(r){ cl=loadPortalData(r); window.__portalKey={doc,clave}; }
   }catch(err){
     console.warn(err); if(btn) btn.disabled=false;
     ce.textContent='No pudimos conectar con el servidor. Intenta de nuevo.'; ce.classList.add('on'); return;
@@ -1453,7 +1461,7 @@ function bindCliActions(){
       `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="rpSave">Guardar cambios</button>`);
     $('#rpSave').addEventListener('click',async()=>{
       const nd=$('#rpDate').value, nt=$('#rpTime').value;
-      try{ await sbPortalActualizar(window.__portalKey.doc,window.__portalKey.pl,'cita',ap.id,{date:nd,time:nt}); }
+      try{ await sbPortalCambio(window.__portalKey.doc,window.__portalKey.clave,'cita',ap.id,{date:nd,time:nt}); }
       catch(err){ toast(String(err&&err.message).includes('SLOT_OCUPADO')?'Ese horario ya está ocupado. Elige otro.':'No se pudo guardar el cambio. Intenta de nuevo.'); return; }
       ap.date=nd; ap.time=nt; ap.status='Pendiente';
       logAct(`Cita reprogramada por el cliente · ${ap.plate} → ${fmtDate(ap.date)} ${ap.time}`);
@@ -1465,7 +1473,7 @@ function bindCliActions(){
     modal('Cancelar cita',`<p style="font-size:.9rem;color:var(--ink-2)">¿Confirmas que deseas cancelar la cita del <b>${fmtDate(ap.date)} a las ${ap.time}</b> para la placa ${ap.plate}?</p>`,
       `<button class="btn btn-o" data-mclose>Volver</button><button class="btn btn-p" id="cnYes" style="background:var(--danger)">Sí, cancelar</button>`);
     $('#cnYes').addEventListener('click',async()=>{
-      try{ await sbPortalActualizar(window.__portalKey.doc,window.__portalKey.pl,'cita',ap.id,{status:'Cancelada'}); }
+      try{ await sbPortalCambio(window.__portalKey.doc,window.__portalKey.clave,'cita',ap.id,{status:'Cancelada'}); }
       catch(err){ toast('No se pudo cancelar la cita. Intenta de nuevo.'); return; }
       ap.status='Cancelada'; logAct(`Cita cancelada por el cliente · ${ap.plate}`);
       closeModal(); renderCli(); refreshBadges(); toast('Cita cancelada');
@@ -1473,7 +1481,7 @@ function bindCliActions(){
   }));
   const sv=$('#pfSave');
   if(sv) sv.addEventListener('click',async()=>{
-    try{ await sbPortalActualizar(window.__portalKey.doc,window.__portalKey.pl,'perfil',cliUser.id,
+    try{ await sbPortalCambio(window.__portalKey.doc,window.__portalKey.clave,'perfil',cliUser.id,
       {name:$('#pfName').value.trim(),phone:$('#pfPhone').value.trim(),email:$('#pfMail').value.trim()}); }
     catch(err){ toast('No se pudo guardar tu perfil. Intenta de nuevo.'); return; }
     cliUser.name=$('#pfName').value.trim()||cliUser.name;
@@ -1682,7 +1690,7 @@ function crearClientePortal(doc, name, phone, email, plate, type){
   logAct('Cliente creado · ' + name + ' · ' + plate);
   trackAction('crear-cliente');
   renderAdmin();
-  toast('✅ Cliente registrado — ya puede ingresar al portal con su documento y placa');
+  toast('✅ Cliente registrado — ya puede entrar al portal con su cédula como usuario y contraseña');
   return cl;
 }
 
@@ -1822,7 +1830,7 @@ function renderAdmin(){
      <tbody id="tbCli"></tbody>`);
   drawCli(); $('#fCli').addEventListener('input',drawCli);
   $('#btnNuevoCli')?.addEventListener('click',()=>{
-    modal('Registrar nuevo cliente','<p style="font-size:.86rem;color:var(--ink-2);margin-bottom:16px">El cliente podrá ingresar al <b>portal cliente</b> con su número de documento y la placa de su vehículo.</p>'+
+    modal('Registrar nuevo cliente','<p style="font-size:.86rem;color:var(--ink-2);margin-bottom:16px">El cliente podrá ingresar al <b>portal cliente</b> con su <b>cédula como usuario y como contraseña</b>.</p>'+
       '<div class="fgrid">'+
       '<div><label class="flabel">Nombre completo *</label><input id="ncName" class="finput" placeholder="Nombre y apellido"></div>'+
       '<div><label class="flabel">Documento de identidad *</label><input id="ncDoc" class="finput" inputmode="numeric" placeholder="Cédula o NIT"></div>'+
@@ -2116,6 +2124,7 @@ function renderAgenda(){
       <div class="fgrid">
         <div><label class="flabel">Nombre del cliente</label><input id="nwName" class="finput" placeholder="Nombre y apellido"></div>
         <div><label class="flabel">Celular</label><input id="nwPhone" class="finput" inputmode="tel" placeholder="300 000 00 00"></div>
+        <div><label class="flabel">Cédula</label><input id="nwDoc" class="finput" inputmode="numeric" placeholder="Usuario y contraseña del portal"></div>
         <div><label class="flabel">Placa</label><input id="nwPlate" class="finput mono" maxlength="7" placeholder="ABC123" style="text-transform:uppercase"></div>
         <div><label class="flabel">Tipo</label><select id="nwType" class="finput">${Object.entries(VTREE).flatMap(([g,grp])=>grp.sub.map(s=>`<option value="${s.id}">${grp.label} · ${s.label}</option>`)).join('')}</select></div>
       </div>
@@ -2125,10 +2134,12 @@ function renderAgenda(){
       </div>`,
       `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="nwSave">Registrar cita</button>`);
     $('#nwSave').addEventListener('click',()=>{
-      const nm=$('#nwName').value.trim(), ph=$('#nwPhone').value.trim(), pl=$('#nwPlate').value.trim().toUpperCase();
+      const nm=$('#nwName').value.trim(), ph=$('#nwPhone').value.trim(), pl=$('#nwPlate').value.trim().toUpperCase(), doc=$('#nwDoc').value.trim();
       if(nm.length<3||!/^\d{10}$/.test(ph)||!pl) return toast('Completa nombre, celular de 10 dígitos y placa');
-      let cl=DB.clients.find(c=>c.phone===ph);
-      if(!cl){ cl={id:uid('c'),doc:'',name:nm,phone:ph,email:'',notes:'Registrado desde la agenda.'}; DB.clients.push(cl); }
+      if(!/^\d{6,12}$/.test(doc)) return toast('Escribe la cédula (solo números): será su usuario y contraseña del portal');
+      let cl=DB.clients.find(c=>c.doc===doc)||DB.clients.find(c=>c.phone===ph);
+      if(!cl){ cl={id:uid('c'),doc,name:nm,phone:ph,email:'',notes:'Registrado desde la agenda.'}; DB.clients.push(cl); }
+      else if(!cl.doc) cl.doc=doc;
       if(!vehByPlate(pl)) DB.vehicles.push({id:uid('v'),plate:pl,type:$('#nwType').value,cat:vLabel($('#nwType').value),clientId:cl.id,due:null});
       DB.appts.push({id:uid('a'),clientId:cl.id,plate:pl,name:nm,phone:ph,email:'',
         type:$('#nwType').value,date:d,time:t,status:'Confirmada',source:$('#nwSrc').value,
@@ -2786,6 +2797,7 @@ function nuevaPreventiva(d,t){
     <div class="fgrid" style="margin-top:14px">
       <div><label class="flabel">Nombre</label><input id="pvName" class="finput"></div>
       <div><label class="flabel">Celular</label><input id="pvPhone" class="finput" inputmode="tel"></div>
+      <div><label class="flabel">Cédula</label><input id="pvDoc" class="finput" inputmode="numeric" placeholder="Usuario y contraseña del portal"></div>
       <div><label class="flabel">Placa</label><input id="pvPlate" class="finput mono" style="text-transform:uppercase"></div>
       <div><label class="flabel">Asesor</label><select id="pvAdv" class="finput"><option value="">Sin asignar</option>${ADVISORS.map(a=>`<option value="${a.id}" ${currentUser&&currentUser.advisorId===a.id?'selected':''}>${a.name}</option>`).join('')}</select></div>
     </div>`,
@@ -2799,10 +2811,12 @@ function nuevaPreventiva(d,t){
     else if(code.length>=8) setFieldState(e.target,false,'No encontramos ese bono.');
   });
   $('#pvSave').addEventListener('click',()=>{
-    const nm=$('#pvName').value.trim(), ph=$('#pvPhone').value.trim(), pl=$('#pvPlate').value.trim().toUpperCase();
+    const nm=$('#pvName').value.trim(), ph=$('#pvPhone').value.trim(), pl=$('#pvPlate').value.trim().toUpperCase(), doc=$('#pvDoc').value.trim();
     if(nm.length<3||!ph||!pl) return toast('Completa nombre, celular y placa');
-    let cl=DB.clients.find(c=>c.phone===ph);
-    if(!cl){cl={id:uid('c'),doc:'',name:nm,phone:ph,email:'',notes:'Registrado desde preventivas.'};DB.clients.push(cl);}
+    if(!/^\d{6,12}$/.test(doc)) return toast('Escribe la cédula (solo números): será su usuario y contraseña del portal');
+    let cl=DB.clients.find(c=>c.doc===doc)||DB.clients.find(c=>c.phone===ph);
+    if(!cl){cl={id:uid('c'),doc,name:nm,phone:ph,email:'',notes:'Registrado desde preventivas.'};DB.clients.push(cl);}
+    else if(!cl.doc) cl.doc=doc;
     const det=detectVehicleByPlate(pl);
     if(!vehByPlate(pl)) DB.vehicles.push({id:uid('v'),plate:pl,type:det?det.sub:'automovil',cat:vLabel(det?det.sub:'automovil'),clientId:cl.id,due:null});
     DB.appts.push({id:uid('a'),clientId:cl.id,plate:pl,name:nm,phone:ph,email:'',
