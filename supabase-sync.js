@@ -33,7 +33,7 @@ try {
 } catch (e) { console.warn('Supabase no disponible', e); }
 
 /* ---------- Colecciones y permisos (espejo del servidor; la autoridad es RLS) ---------- */
-const SB_COLLS = ['clients','vehicles','appts','revisions','credits','cartera','reminders','cashLedger','bankAccounts'];
+const SB_COLLS = ['clients','vehicles','appts','revisions','credits','cartera','reminders','cashLedger','bankAccounts','followups'];
 const SB_OPS   = ['clients','vehicles','appts','reminders','revisions'];
 const sbCan = {
   read:  (role, c) => role !== 'asesor' || [...SB_OPS, 'config', 'log'].includes(c),
@@ -154,6 +154,27 @@ async function sbAdminSendLink(usuario) {
     if (error) throw sbFail('CODIGO_NO_ENVIADO', 'paso 2 · enviar el enlace al buzón', error);
   }
   return { linkSent: true, hint: sbMask(ADMIN_2FA_MAILBOX) };
+}
+
+/* Personas que aparecen como tarjetas en el acceso. El usuario coincide con el de staff. */
+const ADMIN_ROSTER = [
+  { usuario:'G3r3nc14',  nombre:'Gerencia',    detalle:'Ricardo Quiroga',   rol:'superusuario',       color:'#6D28D9', ini:'RQ' },
+  { usuario:'D1r3cc10n', nombre:'Dirección',   detalle:'Dirección General', rol:'superadministrador', color:'#0F3319', ini:'DG' },
+  { usuario:'C4j4',      nombre:'Caja',        detalle:'Paola Jiménez',     rol:'administrador',      color:'#1D6132', ini:'PJ' },
+  { usuario:'4s3s0r1',   nombre:'Asesor 1',    detalle:'Diego Ramírez',     rol:'asesor',             color:'#B7862C', ini:'DR' },
+  { usuario:'4s3s0r2',   nombre:'Asesor 2',    detalle:'Carolina Muñoz',    rol:'asesor',             color:'#B7862C', ini:'CM' }
+];
+/* Toca una tarjeta → se envía el código al buzón; al verificar entra con el rol de esa persona. */
+async function sbAdminRequestCode(usuario) {
+  if (!SB) throw sbFail('SIN_CONEXION', 'el sitio no pudo cargar Supabase');
+  usuario = String(usuario || '').trim();
+  let email;
+  try { email = String(await sbRpc('correo_de_usuario', { p_usuario: usuario })).toLowerCase(); }
+  catch (e) { throw sbFail('ERROR_SERVIDOR', 'paso 1 · identificar al usuario', e); }
+  if (email.endsWith('@no-existe.invalid')) throw sbFail('SIN_ACCESO', 'ese usuario no está activo');
+  const { error } = await SB.auth.signInWithOtp({ email: ADMIN_2FA_MAILBOX, options: { shouldCreateUser: false } });
+  if (error) throw sbFail('CODIGO_NO_ENVIADO', 'paso 2 · enviar el código al buzón', error);
+  return { needCode: true, email: ADMIN_2FA_MAILBOX, pending: email, hint: sbMask(ADMIN_2FA_MAILBOX) };
 }
 
 async function sbAdminResume() {

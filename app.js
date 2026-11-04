@@ -162,28 +162,28 @@ const ROLES = {
     desc:'Gerencia · seguimiento, control y revisión',
     color:'#6D28D9',
     home:'gerencia',
-    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','cartera','fin','finanzas','export','config']
+    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','cartera','fin','finanzas','export','config']
   },
   superadministrador:{
     label:'Superadministrador',
     desc:'Gerencia · control total y gestión de usuarios',
     color:'#0F3319',
     home:'gerencia',
-    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','cartera','fin','finanzas','caja','export','usuarios','config']
+    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','cartera','fin','finanzas','caja','export','usuarios','config']
   },
   administrador:{
     label:'Usuario administrador',
     desc:'Caja y digitación · alimenta el sistema',
     color:'#1D6132',
     home:'caja',
-    nav:['caja','agenda','preventivas','citas','clientes','vehiculos','venc','informes']
+    nav:['caja','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','informes']
   },
   asesor:{
     label:'Usuario asesor',
     desc:'Agenda, prospectos y comisiones',
     color:'#B7862C',
     home:'miagenda',
-    nav:['miagenda','agenda','preventivas','clientes','vehiculos','venc','informes']
+    nav:['miagenda','agenda','preventivas','clientes','vehiculos','venc','alertas','pipeline','informes']
   }
 };
 const ROLE_LABEL = Object.fromEntries(Object.entries(ROLES).map(([k,v])=>[k,v.label]));
@@ -246,6 +246,9 @@ const DB = {
   reminders:[],
   // Bandeja de notificaciones (admin + cliente). type: venc|noshow|inactividad|movimiento|credito|sistema
   notifications:[],
+  // Seguimiento de vencimientos (pipeline). Un registro por vehículo gestionado.
+  // estado: nuevo|contacto1|contacto2|agendada|asistida|seguimiento24|cerrado|noInteresado
+  followups:[],
   // Cuentas bancarias para registro de ingresos (Finanzas)
   bankAccounts:[
     {id:'b1', name:'Bancolombia · Cuenta corriente', balance:0},
@@ -1536,10 +1539,11 @@ let adPending=null, adPendingUser=null;
 function adErr(msg,detail){ const e=$('#adErr'); e.textContent=msg; if(detail){ const d=document.createElement('small'); d.style.cssText='display:block;margin-top:5px;opacity:.8;font-size:.78rem;line-height:1.35'; d.textContent='Detalle: '+detail; e.appendChild(d); } e.classList.add('on'); }
 function resetAdminForm(){
   adPending=null; adPendingUser=null; $('#admForm').reset();
-  $('#adStep1').style.display=''; $('#adStep2').style.display='none';
+  const s0=$('#adStep0'); if(s0) s0.style.display='';
+  $('#adStep1').style.display='none'; $('#adStep2').style.display='none';
   const sl=$('#adStepLink'); if(sl) sl.style.display='none';
   $('#adErr').classList.remove('on');
-  const b=$('#admForm button[type=submit]'); b.disabled=false; b.style.display=''; b.textContent='Ingresar al portal';
+  const b=$('#admForm button[type=submit]'); b.disabled=false; b.style.display='none'; b.textContent='Ingresar al portal';
 }
 function enterAdmin(p){
   const u={id:p.email,username:p.username||p.email,name:p.name,role:p.role,advisorId:p.advisorId||undefined};
@@ -1563,6 +1567,55 @@ async function startAdminSession(p){
   catch(e){ console.warn(e); await sbAdminLogout(); const er=new Error('CARGA_FALLIDA'); er.detail='cargar '+(typeof sbStage!=='undefined'&&sbStage?sbStage:'datos')+' → '+((e&&e.message)||e); throw er; }
   enterAdmin(p);
 }
+/* Tarjetas de perfil para el acceso (modo código) */
+function pintarRoster(){
+  const cont=$('#adRoster'); if(!cont || typeof ADMIN_ROSTER==='undefined') return;
+  cont.innerHTML = ADMIN_ROSTER.map(p=>`
+    <button type="button" class="ad-person" data-usuario="${p.usuario}">
+      <span class="av" style="background:${p.color}">${p.ini}</span>
+      <span class="who"><b>${p.nombre}</b><span>${p.detalle}</span></span>
+      <svg class="arw" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+    </button>`).join('');
+  $$('#adRoster .ad-person').forEach(b=>b.addEventListener('click',()=>pedirCodigoPerfil(b.dataset.usuario)));
+}
+async function pedirCodigoPerfil(usuario){
+  $('#adErr').classList.remove('on');
+  const cont=$('#adRoster'); if(cont) cont.style.pointerEvents='none';
+  try{
+    const r=await sbAdminRequestCode(usuario);
+    adPending=r.email; adPendingUser=r.pending;
+    $('#adStep0').style.display='none';
+    $('#adStep2').style.display='';
+    $('#adCodeMail').textContent=r.hint;
+    const b=$('#admForm button[type=submit]'); b.style.display=''; b.textContent='Verificar código'; b.disabled=false;
+    $('#adCode').focus();
+  }catch(err){
+    const m=String(err&&err.message||err);
+    adErr(m==='CODIGO_NO_ENVIADO'?'No pudimos enviar el código. Revisa el correo del CDA e intenta de nuevo.'
+      :m==='SIN_ACCESO'?'Ese perfil no está activo.'
+      :'No pudimos procesar el acceso. Intenta de nuevo.', err&&err.detail);
+  }finally{ if(cont) cont.style.pointerEvents=''; }
+}
+// Enlazar tarjetas al cargar y el botón de usuario/contraseña
+if(window.CDA_ENTRY==='admin'){
+  const esCode = (typeof ADMIN_LOGIN_MODE!=='undefined' && ADMIN_LOGIN_MODE==='code');
+  const _b=$('#admForm button[type=submit]');
+  if(esCode){
+    // Modo código: arranca con las tarjetas de perfil, sin botón.
+    pintarRoster();
+    if(_b) _b.style.display='none';
+    const ou=$('#adOtherUser'); if(ou) ou.addEventListener('click',()=>{
+      $('#adStep0').style.display='none'; $('#adStep1').style.display='';
+      if(_b){ _b.style.display=''; _b.textContent='Ingresar al portal'; }
+    });
+  } else {
+    // Modo usuario/contraseña (o enlace): arranca directo en el formulario.
+    const s0=$('#adStep0'); if(s0) s0.style.display='none';
+    const s1=$('#adStep1'); if(s1) s1.style.display='';
+    if(_b) _b.style.display='';
+  }
+}
+
 $('#admForm').addEventListener('submit',async e=>{
   e.preventDefault();
   const btn=$('#admForm button[type=submit]');
@@ -1643,6 +1696,8 @@ const NAV_META = {
   clientes:{label:'Clientes', ico:'<circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1"/>', grupo:'Operación'},
   vehiculos:{label:'Vehículos', ico:'<path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2" y="13" width="20" height="6" rx="1.6"/>', grupo:'Operación'},
   venc:{label:'Vencimientos', ico:'<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>', grupo:'Operación', badge:'bgVenc'},
+  alertas:{label:'Alertas de vencimiento', ico:'<path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5M12 17.5v.5"/>', grupo:'Seguimiento', badge:'bgAlertas'},
+  pipeline:{label:'Seguimiento (pipeline)', ico:'<rect x="3" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/>', grupo:'Seguimiento', badge:'bgPipe'},
   cartera:{label:'Cartera', ico:'<path d="M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h11l5 4"/>', grupo:'Financiero'},
   fin:{label:'Créditos', ico:'<rect x="2" y="5" width="20" height="14" rx="2.4"/><path d="M2 10h20M6 15h4"/>', grupo:'Financiero'},
   finanzas:{label:'Finanzas', ico:'<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', grupo:'Financiero'},
@@ -1653,7 +1708,7 @@ const NAV_META = {
 };
 function buildNav(role){
   const nav = ROLES[role].nav;
-  const grupos = ['Mi vista','Operación','Financiero','Sistema'];
+  const grupos = ['Mi vista','Operación','Seguimiento','Financiero','Sistema'];
   let html='';
   grupos.forEach(g=>{
     const items = nav.filter(k=>NAV_META[k] && NAV_META[k].grupo===g);
@@ -1717,6 +1772,151 @@ function crearClientePortal(doc, name, phone, email, plate, type){
   renderAdmin();
   toast('✅ Cliente registrado — ya puede entrar al portal con su cédula como usuario y contraseña');
   return cl;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   ALERTAS DE VENCIMIENTO + PIPELINE DE SEGUIMIENTO
+   Ventana del semáforo: 10 días antes, 3 días antes y el mismo día.
+   ═══════════════════════════════════════════════════════════════ */
+const FUP_STAGES = [
+  {id:'nuevo',        label:'Por contactar',        desc:'Aún sin primer contacto'},
+  {id:'contacto1',    label:'Contactado (1ª vez)',  desc:'Primer mensaje enviado'},
+  {id:'contacto2',    label:'2º contacto (24 h)',   desc:'Seguimiento al día siguiente'},
+  {id:'agendada',     label:'Cita agendada',        desc:'Ya tiene turno'},
+  {id:'asistida',     label:'Cita asistida',        desc:'Vino al CDA'},
+  {id:'seguimiento24',label:'Seguimiento (24 h)',   desc:'Post-visita'},
+  {id:'cerrado',      label:'Cerrado / renovó',     desc:'Proceso completo'}
+];
+// Semáforo: color según días para el vencimiento
+function alertColor(d){ if(d<0) return '#C0392B'; if(d===0) return '#C0392B'; if(d<=3) return '#E67E22'; return '#CBA135'; }
+function alertLabel(d){ if(d<0) return 'Vencido hace '+Math.abs(d)+' día(s)'; if(d===0) return 'Vence HOY'; return 'Vence en '+d+' día(s)'; }
+// Para un vehículo, el vencimiento más próximo (RTM o SOAT) que esté en ventana
+function alertasDeVehiculo(v){
+  const out=[];
+  [['RTM',v.due],['SOAT',v.soat]].forEach(([tipo,fecha])=>{
+    if(!fecha) return;
+    const d=daysTo(fecha);
+    // ventana: hoy (0), 3 días, 10 días antes — mostramos todo el rango -∞..10, con foco en los hitos
+    if(d<=10){ out.push({tipo,fecha,dias:d}); }
+  });
+  return out;
+}
+// ¿ya hay seguimiento abierto para este vehículo+tipo?
+function fupDe(plate,tipo){ return DB.followups.find(f=>f.plate===plate && f.tipo===tipo && f.estado!=='cerrado'); }
+
+function renderAlertas(){
+  const box=$('#avAlertas'); if(!box) return;
+  // construir lista de alertas vigentes que NO estén ya en el pipeline ni marcadas
+  const filas=[];
+  DB.vehicles.forEach(v=>{
+    alertasDeVehiculo(v).forEach(a=>{
+      if(fupDe(v.plate,a.tipo)) return;                 // ya está en seguimiento
+      const noInt=DB.followups.find(f=>f.plate===v.plate && f.tipo===a.tipo && f.estado==='noInteresado');
+      if(noInt) return;                                  // marcado no interesado este ciclo
+      filas.push({v,...a});
+    });
+  });
+  filas.sort((x,y)=>x.dias-y.dias);
+  const hoy=filas.filter(f=>f.dias<=0).length, tres=filas.filter(f=>f.dias>0&&f.dias<=3).length, diez=filas.filter(f=>f.dias>3&&f.dias<=10).length;
+  box.innerHTML = `
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      ${kpi('Vence hoy o antes',hoy,'alert','Contacto inmediato','alert')}
+      ${kpi('En 3 días',tres,'bell','Urgente','warn')}
+      ${kpi('En 10 días',diez,'clock','Por preparar','warn')}
+    </div>
+    ${panelTable('Semáforo de vencimientos','Marca el chulito al contactar. Puedes enviar el WhatsApp y elegir si hace seguimiento o no.','',
+      filas.length? `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+        <th>Placa</th><th>Cliente</th><th>Celular</th><th>Tipo</th><th>Vence</th><th>Estado</th><th>WhatsApp</th><th>Contactado</th>
+      </tr></thead><tbody>${filas.map(f=>{
+        const c=cliOf(f.v.clientId); const col=alertColor(f.dias);
+        const msg=`Hola ${c.name.split(' ')[0]||''}, le recordamos que la ${f.tipo} de su vehículo de placa ${f.v.plate} ${f.dias<0?'está vencida':'vence '+(f.dias===0?'HOY':'en '+f.dias+' días')}. En CDA Revitolima se la renovamos fácil y rápido. ¿Desea agendar? 🚗`;
+        const wa=c.phone?`https://wa.me/57${c.phone}?text=${encodeURIComponent(msg)}`:'';
+        return `<tr data-alert="${f.v.plate}|${f.tipo}">
+          <td><span class="plate">${f.v.plate}</span></td>
+          <td>${c.name}</td><td class="num">${c.phone||'—'}</td>
+          <td><span class="pill ${f.tipo==='SOAT'?'pill-neu':'pill-warn'}">${f.tipo}</span></td>
+          <td>${fmtDate(f.fecha)}</td>
+          <td><span style="color:${col};font-weight:700">${alertLabel(f.dias)}</span></td>
+          <td>${wa?`<a class="btn btn-wa btn-xs" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>`:'<span style="color:var(--ink-3)">Sin celular</span>'}</td>
+          <td style="text-align:center"><button class="fup-check" title="Marcar contactado" data-fupcheck="${f.v.plate}|${f.tipo}|${f.fecha}">✓</button></td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`
+      : emptyBox('Sin alertas en este momento','Cuando un vehículo esté a 10 días o menos de vencer RTM o SOAT, aparecerá aquí.'))}`;
+  // acción del chulito → preguntar seguimiento
+  $$('#avAlertas [data-fupcheck]').forEach(b=>b.addEventListener('click',()=>abrirContacto(b.dataset.fupcheck)));
+  bindWA();
+}
+
+function abrirContacto(key){
+  const [plate,tipo,fecha]=key.split('|');
+  const v=vehByPlate(plate); const c=cliOf(v.clientId);
+  modal('Registrar contacto · '+plate,`
+    <p style="font-size:.9rem;color:var(--ink-2);margin-bottom:14px">Contactaste a <b>${c.name}</b> por el vencimiento de <b>${tipo}</b> (${fmtDate(fecha)}). ¿Qué deseas hacer?</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-p" data-cact="seguir">Hace seguimiento → enviar al pipeline</button>
+      <button class="btn btn-o" data-cact="noint">No está interesado por ahora</button>
+    </div>`,
+    `<button class="btn btn-o" data-mclose>Cancelar</button>`);
+  $$('#modal [data-cact]').forEach(b=>b.addEventListener('click',()=>{
+    const accion=b.dataset.cact;
+    const base={id:uid('f'),plate,tipo,fecha,clientId:v.clientId,name:c.name,phone:c.phone,
+      creado:iso(today), hist:[{et: accion==='seguir'?'contacto1':'noInteresado', fecha:iso(today)}]};
+    if(accion==='seguir'){ base.estado='contacto1'; DB.followups.push(base); logAct(`Contacto registrado · ${plate} (${tipo}) → seguimiento`); toast('✅ Enviado al pipeline de seguimiento'); }
+    else { base.estado='noInteresado'; DB.followups.push(base); logAct(`Contacto registrado · ${plate} (${tipo}) → no interesado`); toast('Marcado como no interesado'); }
+    closeModal(); renderAdmin();
+  }));
+}
+
+function renderPipeline(){
+  const box=$('#avPipe'); if(!box) return;
+  const activos=DB.followups.filter(f=>f.estado!=='noInteresado');
+  const noInt=DB.followups.filter(f=>f.estado==='noInteresado');
+  const col=(st)=>{
+    const items=activos.filter(f=>f.estado===st.id);
+    return `<div class="kb-col" data-kbcol="${st.id}">
+      <div class="kb-head"><b>${st.label}</b><span class="kb-count">${items.length}</span></div>
+      <div class="kb-body">${items.map(f=>{
+        const d=daysTo(f.fecha);
+        const msg=`Hola ${f.name.split(' ')[0]||''}, seguimos pendientes de la renovación de su ${f.tipo} (placa ${f.plate}). ¿Le ayudamos a agendar? 🚗`;
+        const wa=f.phone?`https://wa.me/57${f.phone}?text=${encodeURIComponent(msg)}`:'';
+        return `<div class="kb-card" data-fup="${f.id}">
+          <div class="kb-plate"><span class="plate">${f.plate}</span><span class="pill ${f.tipo==='SOAT'?'pill-neu':'pill-warn'}" style="font-size:.6rem">${f.tipo}</span></div>
+          <div class="kb-name">${f.name}</div>
+          <div class="kb-meta">${fmtDate(f.fecha)} · <span style="color:${alertColor(d)}">${alertLabel(d)}</span></div>
+          <div class="kb-actions">
+            ${wa?`<a class="kb-wa" href="${wa}" target="_blank" rel="noopener" title="WhatsApp">💬</a>`:''}
+            <select class="kb-move" data-fupmove="${f.id}">
+              ${FUP_STAGES.map(s=>`<option value="${s.id}" ${s.id===f.estado?'selected':''}>${s.label}</option>`).join('')}
+              <option value="noInteresado">No interesado</option>
+            </select>
+          </div>
+        </div>`;
+      }).join('')||'<p class="kb-empty">—</p>'}</div>
+    </div>`;
+  };
+  box.innerHTML = `
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      ${kpi('En seguimiento',activos.length,'chart','Clientes en proceso')}
+      ${kpi('Cerrados / renovaron',DB.followups.filter(f=>f.estado==='cerrado').length,'check','Éxitos','win')}
+      ${kpi('No interesados',noInt.length,'user','Reaparecen al vencer de nuevo','warn')}
+    </div>
+    <div class="kb-scroll"><div class="kb-board">${FUP_STAGES.map(col).join('')}</div></div>
+    ${noInt.length? panelTable('No interesados','No se borran: cuando vuelva a acercarse su vencimiento, reaparecen en Alertas.','',
+      `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Placa</th><th>Cliente</th><th>Celular</th><th>Tipo</th><th></th></tr></thead>
+      <tbody>${noInt.map(f=>`<tr><td><span class="plate">${f.plate}</span></td><td>${f.name}</td><td class="num">${f.phone||'—'}</td>
+        <td>${f.tipo}</td><td><button class="btn btn-o btn-xs" data-fupreabrir="${f.id}">Reactivar</button></td></tr>`).join('')}</tbody></table></div>`) : ''}`;
+  // mover de etapa
+  $$('#avPipe [data-fupmove]').forEach(s=>s.addEventListener('change',()=>{
+    const f=DB.followups.find(x=>x.id===s.dataset.fupmove); if(!f) return;
+    f.estado=s.value; f.hist=f.hist||[]; f.hist.push({et:s.value,fecha:iso(today)});
+    logAct(`Pipeline · ${f.plate} → ${s.value}`); renderAdmin();
+  }));
+  $$('#avPipe [data-fupreabrir]').forEach(b=>b.addEventListener('click',()=>{
+    const f=DB.followups.find(x=>x.id===b.dataset.fupreabrir); if(!f) return;
+    f.estado='contacto1'; f.hist.push({et:'reactivado',fecha:iso(today)}); logAct(`Reactivado en pipeline · ${f.plate}`); toast('Reactivado'); renderAdmin();
+  }));
+  bindWA();
 }
 
 function renderAdmin(){
@@ -1912,6 +2112,9 @@ function renderAdmin(){
        <tbody>${DB.reminders.map(m=>`<tr><td><b>${m.name}</b></td><td><span class="plate">${m.plate}</span></td>
          <td>${fmtDate(m.due)}</td><td>${m.channel}</td><td class="num">${m.phone}</td>
          <td>${m.converted?'<span class="pill pill-ok">Sí</span>':'<span class="pill pill-neu">No</span>'}</td></tr>`).join('')}</tbody>`)}`;
+
+  renderAlertas();
+  renderPipeline();
 
   /* CARTERA */
   const carSorted=[...DB.cartera].sort((a,b)=>daysTo(a.due)-daysTo(b.due));

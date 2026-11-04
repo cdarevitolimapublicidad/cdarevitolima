@@ -964,7 +964,12 @@
           <h1 class="dsp">Acceso administrativo</h1>
           <p>Ingresa con tus credenciales autorizadas.</p>
           <form id="admForm" novalidate>
-            <div id="adStep1">
+            <div id="adStep0">
+              <p style="font-size:.9rem;color:var(--ink-2);margin-bottom:14px">Selecciona tu perfil para recibir el código de acceso.</p>
+              <div id="adRoster" class="ad-roster"></div>
+              <button type="button" id="adOtherUser" class="ad-otherbtn">Ingresar con usuario y contraseña</button>
+            </div>
+            <div id="adStep1" style="display:none">
               <div class="login-field">
                 <label class="flabel" for="adUser">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1"/></svg>
@@ -1041,6 +1046,8 @@
         <div class="pview" data-avw="clientes" id="avCli"></div>
         <div class="pview" data-avw="vehiculos" id="avVeh"></div>
         <div class="pview" data-avw="venc" id="avVenc"></div>
+        <div class="pview" data-avw="alertas" id="avAlertas"></div>
+        <div class="pview" data-avw="pipeline" id="avPipe"></div>
         <div class="pview" data-avw="cartera" id="avCart"></div>
         <div class="pview" data-avw="fin" id="avFin"></div>
         <div class="pview" data-avw="export" id="avExp"></div>
