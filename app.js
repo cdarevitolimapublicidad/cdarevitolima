@@ -1529,10 +1529,11 @@ $$('.cred-pick').forEach(b=>b.addEventListener('click',()=>{
 let adPending=null, adPendingUser=null;
 function adErr(msg,detail){ const e=$('#adErr'); e.textContent=msg; if(detail){ const d=document.createElement('small'); d.style.cssText='display:block;margin-top:5px;opacity:.8;font-size:.78rem;line-height:1.35'; d.textContent='Detalle: '+detail; e.appendChild(d); } e.classList.add('on'); }
 function resetAdminForm(){
-  adPending=null; $('#admForm').reset();
+  adPending=null; adPendingUser=null; $('#admForm').reset();
   $('#adStep1').style.display=''; $('#adStep2').style.display='none';
+  const sl=$('#adStepLink'); if(sl) sl.style.display='none';
   $('#adErr').classList.remove('on');
-  const b=$('#admForm button[type=submit]'); b.disabled=false; b.textContent='Ingresar al portal';
+  const b=$('#admForm button[type=submit]'); b.disabled=false; b.style.display=''; b.textContent='Ingresar al portal';
 }
 function enterAdmin(p){
   const u={id:p.email,username:p.username||p.email,name:p.name,role:p.role,advisorId:p.advisorId||undefined};
@@ -1559,6 +1560,24 @@ async function startAdminSession(p){
 $('#admForm').addEventListener('submit',async e=>{
   e.preventDefault();
   const btn=$('#admForm button[type=submit]');
+  // Camino B: modo enlace. Solo se pide el usuario; el acceso llega por correo.
+  if(typeof ADMIN_LOGIN_MODE!=='undefined' && ADMIN_LOGIN_MODE==='link'){
+    const user=$('#adUser').value.trim();
+    if(!user){ adErr('Escribe tu usuario.'); return; }
+    btn.disabled=true; btn.textContent='Enviando enlace…'; $('#adErr').classList.remove('on');
+    try{
+      const r=await sbAdminSendLink(user);
+      $('#adStep1').style.display='none'; btn.style.display='none';
+      $('#adLinkMail').textContent=r.hint; $('#adStepLink').style.display='';
+    }catch(err){
+      const m=String(err&&err.message||err);
+      adErr(m==='CODIGO_NO_ENVIADO'?'No pudimos enviar el enlace al correo. Intenta en unos minutos.'
+        :m==='SIN_CONEXION'?'No hay conexión con el servidor. Intenta de nuevo.'
+        :'No pudimos procesar el acceso. Intenta de nuevo.', err&&err.detail);
+      btn.disabled=false; btn.textContent='Ingresar al portal';
+    }
+    return;
+  }
   btn.disabled=true; btn.textContent='Verificando…';
   try{
     if(adPending){
@@ -3745,8 +3764,15 @@ if(window.CDA_ENTRY==='admin' || window.CDA_ENTRY==='cliente'){
   go(window.CDA_ENTRY);
   document.title = window.CDA_ENTRY==='admin' ? 'CDA Revitolima · Portal administrativo' : 'CDA Revitolima · Portal del cliente';
 }
+if(window.CDA_ENTRY==='admin' && typeof ADMIN_LOGIN_MODE!=='undefined' && ADMIN_LOGIN_MODE==='link'){
+  const pf=document.querySelector('#adPass'); if(pf){ const w=pf.closest('.login-field'); if(w) w.style.display='none'; pf.removeAttribute('required'); }
+}
 if(window.CDA_ENTRY==='admin'){
+  const volviendoDeLink = /access_token=|type=magiclink|error=/.test(location.hash||'');
+  if(volviendoDeLink){ const s=$('#adStep1'); if(s){ $('#adStep1').style.display='none';
+    const b=$('#admForm button[type=submit]'); if(b){ b.disabled=true; b.textContent='Entrando…'; } } }
   sbAdminResume().then(p=>{
     if(p) startAdminSession(p).catch(e=>adErr('No pudimos cargar los datos. Ingresa de nuevo.', e&&e.detail));
+    else if(volviendoDeLink){ resetAdminForm(); adErr('El enlace no es válido o ya venció. Pide uno nuevo.'); }
   });
 }

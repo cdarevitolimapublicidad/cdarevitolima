@@ -13,18 +13,22 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
    Para volver a activarlo: configurar el SMTP en Supabase (Authentication → Emails),
    pegar la plantilla "Magic link" con {{ .Token }} y cambiar esto a true.
    Con usuario = contraseña, este código es la protección real. */
-const ADMIN_EMAIL_2FA = true;
-/* Buzón ÚNICO al que llega el código de ingreso al admin, entre quien entre.
-   Debe existir como usuario en Authentication (Supabase solo envía el código
-   a un correo con cuenta). Para apagar el código: ADMIN_EMAIL_2FA = false. */
+/* ACCESO AL ADMIN · modo de ingreso:
+   'link'     = la persona escribe su usuario, le llega un enlace al buzón y entra al abrirlo (sin contraseña ni código).
+   'password' = usuario + contraseña (sin correo).
+   'code'     = usuario + contraseña + código de 6 dígitos al buzón.
+   Para 'link' y 'code' hace falta el SMTP activo en Supabase. */
+const ADMIN_LOGIN_MODE = 'link';
+/* Buzón ÚNICO al que llega el enlace/código, entre quien entre. Debe existir en Authentication. */
 const ADMIN_2FA_MAILBOX = 'cdarevitolimapublicidad@gmail.com';
+const ADMIN_EMAIL_2FA = (ADMIN_LOGIN_MODE === 'code');
 /* Minutos de inactividad antes de cerrar la sesión del administrativo. */
 const ADMIN_IDLE_MIN = 30;
 
 let SB = null;
 try {
   SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
   });
 } catch (e) { console.warn('Supabase no disponible', e); }
 
@@ -129,12 +133,44 @@ async function sbAdminVerify(email, code, pending) {
   if (!prof) { await SB.auth.signOut(); throw sbFail('SIN_ACCESO', 'el usuario no figura como personal activo'); }
   return { profile: prof };
 }
+/* Camino B: enviar un enlace de acceso al buzón. El enlace, al abrirse, crea la sesión.
+   Recordamos en este navegador a quién se dejará entrar (su usuario), para asignar el rol al volver. */
+async function sbAdminSendLink(usuario) {
+  if (!SB) throw sbFail('SIN_CONEXION', 'el sitio no pudo cargar Supabase');
+  usuario = String(usuario || '').trim();
+  if (!usuario) throw new Error('CREDENCIALES');
+  let email;
+  try { email = String(await sbRpc('correo_de_usuario', { p_usuario: usuario })).toLowerCase(); }
+  catch (e) { throw sbFail('ERROR_SERVIDOR', 'paso 1 · buscar el usuario', e); }
+  // Si el usuario no existe, email es @no-existe.invalid: Supabase no enviará nada,
+  // pero respondemos igual para no revelar qué usuarios existen.
+  const esValido = !email.endsWith('@no-existe.invalid');
+  try { localStorage.setItem('cda_admin_pending', esValido ? email : ''); } catch(_) {}
+  if (esValido) {
+    const { error } = await SB.auth.signInWithOtp({
+      email: ADMIN_2FA_MAILBOX,
+      options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname }
+    });
+    if (error) throw sbFail('CODIGO_NO_ENVIADO', 'paso 2 · enviar el enlace al buzón', error);
+  }
+  return { linkSent: true, hint: sbMask(ADMIN_2FA_MAILBOX) };
+}
+
 async function sbAdminResume() {
   if (!SB) return null;
   try {
     const { data } = await SB.auth.getSession();
     if (!data || !data.session) return null;
-    return await sbRpc('mi_perfil');
+    // Si la sesión es la del buzón (entró por enlace), el rol es el del usuario recordado.
+    let pending = null;
+    try { pending = localStorage.getItem('cda_admin_pending') || null; } catch(_) {}
+    const sesionEmail = (data.session.user && data.session.user.email || '').toLowerCase();
+    const arg = (sesionEmail === ADMIN_2FA_MAILBOX && pending) ? { p_email: pending } : {};
+    const prof = await sbRpc('mi_perfil', arg);
+    // Al entrar bien, limpiamos la marca y la sesión del enlace del URL.
+    if (prof) { try { localStorage.removeItem('cda_admin_pending'); } catch(_) {}
+      if (location.hash) history.replaceState(null, '', location.pathname); }
+    return prof;
   } catch (e) { return null; }
 }
 async function sbAdminLogout() {
