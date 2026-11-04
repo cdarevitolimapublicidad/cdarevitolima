@@ -1526,7 +1526,7 @@ $$('.cred-pick').forEach(b=>b.addEventListener('click',()=>{
   $$('.cred-pick').forEach(x=>x.style.borderColor='#E8DCB8');
   b.style.borderColor='var(--gold)';
 }));
-let adPending=null;
+let adPending=null, adPendingUser=null;
 function adErr(msg,detail){ const e=$('#adErr'); e.textContent=msg; if(detail){ const d=document.createElement('small'); d.style.cssText='display:block;margin-top:5px;opacity:.8;font-size:.78rem;line-height:1.35'; d.textContent='Detalle: '+detail; e.appendChild(d); } e.classList.add('on'); }
 function resetAdminForm(){
   adPending=null; $('#admForm').reset();
@@ -1562,13 +1562,13 @@ $('#admForm').addEventListener('submit',async e=>{
   btn.disabled=true; btn.textContent='Verificando…';
   try{
     if(adPending){
-      const r=await sbAdminVerify(adPending,$('#adCode').value);
+      const r=await sbAdminVerify(adPending,$('#adCode').value,adPendingUser);
       btn.textContent='Cargando datos…';
       await startAdminSession(r.profile); resetAdminForm();
     }else{
       const r=await sbAdminLogin($('#adUser').value,$('#adPass').value);
       if(r.needCode){
-        adPending=r.email; $('#adStep1').style.display='none'; $('#adStep2').style.display='';
+        adPending=r.email; adPendingUser=r.pending; $('#adStep1').style.display='none'; $('#adStep2').style.display='';
         $('#adCodeMail').textContent=r.hint; $('#adErr').classList.remove('on'); $('#adCode').focus();
       }else{
         btn.textContent='Cargando datos…';

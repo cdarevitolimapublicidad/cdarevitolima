@@ -13,7 +13,11 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
    Para volver a activarlo: configurar el SMTP en Supabase (Authentication → Emails),
    pegar la plantilla "Magic link" con {{ .Token }} y cambiar esto a true.
    Con usuario = contraseña, este código es la protección real. */
-const ADMIN_EMAIL_2FA = false;
+const ADMIN_EMAIL_2FA = true;
+/* Buzón ÚNICO al que llega el código de ingreso al admin, entre quien entre.
+   Debe existir como usuario en Authentication (Supabase solo envía el código
+   a un correo con cuenta). Para apagar el código: ADMIN_EMAIL_2FA = false. */
+const ADMIN_2FA_MAILBOX = 'cdarevitolimapublicidad@gmail.com';
 /* Minutos de inactividad antes de cerrar la sesión del administrativo. */
 const ADMIN_IDLE_MIN = 30;
 
@@ -103,21 +107,26 @@ async function sbAdminLogin(usuario, pass) {
   catch (e) { await SB.auth.signOut(); throw sbFail('ERROR_SERVIDOR', 'paso 3 · permisos', e); }
   if (!prof) { await SB.auth.signOut(); throw sbFail('SIN_ACCESO', 'paso 3 · el correo ' + sbMask(email) + ' no figura como personal activo'); }
   if (ADMIN_EMAIL_2FA) {
-    // La contraseña ya se verificó: se cierra esa sesión y solo se abre con el código del correo.
+    // La contraseña ya se verificó. Se cierra esa sesión y el ingreso se completa
+    // solo con el código, que SIEMPRE llega al buzón de seguridad (no al correo del usuario).
     await SB.auth.signOut();
-    const { error: e2 } = await SB.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-    if (e2) throw sbFail('CODIGO_NO_ENVIADO', 'paso 4 · enviar el código', e2);
-    return { needCode: true, email, hint: sbMask(email) };
+    const { error: e2 } = await SB.auth.signInWithOtp({ email: ADMIN_2FA_MAILBOX, options: { shouldCreateUser: false } });
+    if (e2) throw sbFail('CODIGO_NO_ENVIADO', 'paso 4 · enviar el código al buzón de seguridad', e2);
+    // Se recuerda a quién se dejará entrar cuando el código sea correcto.
+    return { needCode: true, email: ADMIN_2FA_MAILBOX, pending: email, hint: sbMask(ADMIN_2FA_MAILBOX) };
   }
   return { profile: prof };
 }
-async function sbAdminVerify(email, code) {
-  const { error } = await SB.auth.verifyOtp({ email, token: String(code || '').trim(), type: 'email' });
+async function sbAdminVerify(email, code, pending) {
+  // El código se envió al buzón de seguridad; se verifica contra ese mismo buzón.
+  const { error } = await SB.auth.verifyOtp({ email: ADMIN_2FA_MAILBOX, token: String(code || '').trim(), type: 'email' });
   if (error) throw sbFail('CODIGO_INVALIDO', 'verificar el código', error);
+  // El código abrió una sesión del BUZÓN. El portal usa el perfil de la persona que escribió
+  // su usuario y contraseña (pending): ese es el rol con el que realmente trabaja.
   let prof;
-  try { prof = await sbRpc('mi_perfil'); }
+  try { prof = await sbRpc('mi_perfil', { p_email: pending || null }); }
   catch (e) { await SB.auth.signOut(); throw sbFail('ERROR_SERVIDOR', 'permisos', e); }
-  if (!prof) { await SB.auth.signOut(); throw sbFail('SIN_ACCESO', 'el correo no figura como personal activo'); }
+  if (!prof) { await SB.auth.signOut(); throw sbFail('SIN_ACCESO', 'el usuario no figura como personal activo'); }
   return { profile: prof };
 }
 async function sbAdminResume() {
