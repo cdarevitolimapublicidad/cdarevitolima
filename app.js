@@ -17,6 +17,11 @@ const FOTOS={
   via:'img/via.jpg',
   entrada:'img/entrada.jpg'
 };
+/* Si el enlace de acceso del admin cae por error en el inicio (hash con token),
+   lo reenviamos a /admin para que la sesión se complete en el panel. */
+if((!window.CDA_ENTRY||window.CDA_ENTRY==='pub') && /access_token=|type=magiclink|type=recovery/.test(location.hash||'')){
+  location.replace((location.pathname.replace(/[^/]*$/,'')||'/')+'admin.html'+location.hash);
+}
 if(!window.CDA_ENTRY||window.CDA_ENTRY==='pub') document.querySelectorAll('[data-foto]').forEach(i=>{const k=i.dataset.foto; if(FOTOS[k]) i.src=FOTOS[k];});
 const LOGO_SRC='img/logo.png';
 document.querySelectorAll('[data-logo]').forEach(i=>i.src=LOGO_SRC);

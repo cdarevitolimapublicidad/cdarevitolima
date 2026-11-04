@@ -18,7 +18,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
    'password' = usuario + contraseña (sin correo).
    'code'     = usuario + contraseña + código de 6 dígitos al buzón.
    Para 'link' y 'code' hace falta el SMTP activo en Supabase. */
-const ADMIN_LOGIN_MODE = 'link';
+const ADMIN_LOGIN_MODE = 'code';
 /* Buzón ÚNICO al que llega el enlace/código, entre quien entre. Debe existir en Authentication. */
 const ADMIN_2FA_MAILBOX = 'cdarevitolimapublicidad@gmail.com';
 const ADMIN_EMAIL_2FA = (ADMIN_LOGIN_MODE === 'code');
@@ -149,7 +149,7 @@ async function sbAdminSendLink(usuario) {
   if (esValido) {
     const { error } = await SB.auth.signInWithOtp({
       email: ADMIN_2FA_MAILBOX,
-      options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname }
+      options: { shouldCreateUser: false, emailRedirectTo: location.origin + '/admin' }
     });
     if (error) throw sbFail('CODIGO_NO_ENVIADO', 'paso 2 · enviar el enlace al buzón', error);
   }
