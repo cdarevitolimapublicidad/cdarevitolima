@@ -1500,3 +1500,34 @@ td small{display:block;color:var(--ink-3);font-size:.76rem;margin-top:1px}
 .cfg-row b{font-size:.88rem;display:block}
 .cfg-row small{color:var(--ink-3);font-size:.78rem}
 .cfg-row .finput{width:auto;min-width:150px;padding:9px 13px;font-size:.86rem}
+
+
+/* ═══ TARIFAS: letrero "Consulta las tarifas con nuestros asesores" ═══ */
+.tar-sign{position:relative;overflow:hidden;border-radius:var(--r-xl);padding:56px 50px 52px;color:#fff;
+  background:linear-gradient(135deg,var(--green-900) 0%,var(--green-800) 55%,var(--green-700) 100%);
+  box-shadow:0 22px 50px rgba(15,51,25,.28);border:1px solid rgba(255,255,255,.10)}
+.tar-sign::before{content:'';position:absolute;inset:14px;border:2px solid rgba(201,240,74,.38);
+  border-radius:calc(var(--r-xl) - 10px);pointer-events:none}
+.tar-sign::after{content:'';position:absolute;right:-90px;top:-90px;width:320px;height:320px;border-radius:50%;
+  background:radial-gradient(circle,rgba(201,240,74,.22),transparent 68%);pointer-events:none}
+.tar-sign>*{position:relative;z-index:1}
+.tar-sign-tag{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.2em;
+  font-weight:600;color:var(--green-900);background:var(--lime);padding:6px 14px;border-radius:100px;margin-bottom:18px}
+.tar-sign h2{color:#fff;font-size:clamp(1.9rem,4.4vw,3.1rem);line-height:1.08;text-transform:uppercase;
+  letter-spacing:-.01em;margin-bottom:14px;max-width:760px}
+.tar-sign h2 em{font-style:normal;color:var(--lime)}
+.tar-sign p{color:rgba(255,255,255,.88);font-size:1.02rem;line-height:1.6;max-width:600px;margin-bottom:26px}
+.tar-sign p b{color:#fff}
+.tar-sign-btns{display:flex;gap:12px;flex-wrap:wrap}
+.btn-ghost-w{background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.38)}
+.btn-ghost-w:hover{background:rgba(255,255,255,.2)}
+.tar-facts{display:flex;flex-direction:column;gap:12px}
+.tar-facts .fact{align-items:flex-start;line-height:1.5}
+.tar-facts .fact svg{flex-shrink:0;margin-top:3px}
+@media(max-width:640px){
+  .tar-sign{padding:36px 22px 30px}
+  .tar-sign::before{inset:9px}
+  .tar-sign h2{font-size:1.7rem!important}
+  .tar-sign p{font-size:.9rem;margin-bottom:22px}
+  .tar-sign-btns .btn{width:100%;justify-content:center}
+}

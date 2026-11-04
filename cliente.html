@@ -169,7 +169,7 @@
           <svg class="arw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
         <button class="tile" data-page="tarifas">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-          <b>Consultar tarifa</b><span>Valor según tu tipo de vehículo</span>
+          <b>Consultar tarifa</b><span>Te lo confirma un asesor</span>
           <svg class="arw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
         <button class="tile" data-page="recordatorio">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
@@ -278,7 +278,7 @@
       <div class="sec-head rv">
         <span class="eyebrow">Empieza aquí</span>
         <h2 class="dsp">¿Qué vehículo vas a <span class="g-accent">revisar</span>?</h2>
-        <p>Selecciona el tipo de vehículo para ver los servicios y la tarifa que aplica en tu caso.</p>
+        <p>Selecciona el tipo de vehículo para ver los servicios que aplican en tu caso.</p>
       </div>
       <div class="vgroup-sel rv" id="vGroupSel">
         <button class="vcard sel" data-vgroup="particular" aria-pressed="true">
@@ -343,9 +343,9 @@
   <section style="background:var(--ivory-2);padding-top:0;padding-bottom:70px">
     <div class="wrap"><div class="cta rv" style="padding:38px 34px">
       <h2 class="dsp" style="font-size:1.5rem">¿Listo para tu revisión?</h2>
-      <p>Consulta la tarifa que aplica a tu vehículo o reserva tu turno directamente.</p>
+      <p>Consulta el valor con un asesor o reserva tu turno directamente.</p>
       <div class="cta-btns">
-        <button class="btn btn-lime" data-page="tarifas">Ver tarifas</button>
+        <button class="btn btn-lime" data-page="tarifas">Consultar tarifas</button>
         <button class="btn btn-o" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.3)" data-page="agendar">Agendar cita</button>
       </div></div></div>
   </section>
@@ -355,94 +355,73 @@
 <div class="page" data-pg="tarifas">
   <div class="phead"><div class="phead-bg" aria-hidden="true"><img data-foto="recepcion" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""></div><div class="wrap">
     <div class="crumb">Inicio · <b>Tarifas</b></div>
-    <h1 class="dsp">Consulta el valor <span class="g-accent">antes de venir</span></h1>
-    <p>Selecciona tu vehículo y el servicio que necesitas. Al final te enviamos directo a WhatsApp con la información ya lista, para que te confirmemos el valor exacto sin que tengas que escribirla de nuevo.</p>
+    <h1 class="dsp">El valor <span class="g-accent">según tu vehículo</span></h1>
+    <p>Cada vehículo es distinto: el cilindraje, el modelo y el servicio cambian el valor. Por eso lo confirma una persona del CDA.</p>
   </div></div>
 
-  <!-- TARIFAS: SIMULADOR -->
+  <!-- TARIFAS: LETRERO -->
   <section id="tarifas" style="background:var(--ivory)">
     <div class="wrap">
-      <div class="sim-layout rv">
-        <!-- panel del simulador -->
-        <div class="card" style="padding:30px">
-          <div class="bk-steps" id="simSteps"><div class="bk-step on"></div><div class="bk-step"></div><div class="bk-step"></div></div>
-
-          <div class="bk-pane" data-simpane="1">
-            <div class="bk-lbl">Paso 1 de 3</div>
-            <h3 class="dsp" style="margin-bottom:6px">¿Qué vehículo vas a revisar?</h3>
-            <p style="font-size:.88rem;color:var(--ink-2);margin-bottom:16px">👇 Toca una categoría para continuar.</p>
-            <div class="vgroup-sel" id="simGroupSel" style="max-width:none;grid-template-columns:1fr">
-              <button class="vcard sim-card" data-simgroup="particular"><div class="vcard-bg"><img data-foto="vcar" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2" y="13" width="20" height="6" rx="1.6"/><circle cx="7" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg><b>Particular</b><span>Automóvil, camioneta, campero, eléctrico, híbrido</span></button>
-              <button class="vcard sim-card" data-simgroup="moto"><div class="vcard-bg"><img data-foto="vmoto" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17l5-9h4l2 4h3M10 8H8"/></svg><b>Motocicleta</b><span>Moto, motocarro, motoeléctrica</span></button>
-              <button class="vcard sim-card" data-simgroup="publico"><div class="vcard-bg"><img data-foto="vpub" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2" y="13" width="20" height="6" rx="1.6"/><circle cx="7" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/><path d="M6 10h2M16 10h2"/></svg><b>Servicio público</b><span>Taxi, ambulancia, placa blanca, microbús, escolar</span></button>
-            </div>
-            <div class="vsub-wrap" id="simSubWrap" style="max-width:none;display:none;margin-top:22px">
-              <div class="vsub-lbl">Tipo exacto</div>
-              <div class="vsub-sel" id="simSubSel"></div>
-            </div>
-          </div>
-
-          <div class="bk-pane" data-simpane="2" style="display:none">
-            <div class="bk-lbl">Paso 2 de 3</div>
-            <h3 class="dsp" style="margin-bottom:6px">¿Qué servicio necesitas?</h3>
-            <p style="font-size:.88rem;color:var(--ink-2);margin-bottom:16px">👇 Selecciona una opción.</p>
-            <div id="simSrvSel" class="sim-srv-grid"></div>
-          </div>
-
-          <div class="bk-pane" data-simpane="3" style="display:none">
-            <div class="bk-lbl">Paso 3 de 3</div>
-            <h3 class="dsp" style="margin-bottom:12px">Tu consulta está lista ✅</h3>
-            <div class="note-box"><b>💬 Así funciona</b>Cada tarifa depende del cilindraje, modelo y tipo de servicio, por eso no publicamos un valor fijo. Al tocar el botón te abrimos WhatsApp con <b>toda esta información ya escrita</b> — solo envías y te confirmamos el valor exacto al momento.</div>
-          </div>
-
-          <div style="display:flex;gap:10px;margin-top:26px;flex-wrap:wrap">
-            <button class="btn btn-o" id="simBack" style="display:none">Atrás</button>
-            <button class="btn btn-p" id="simNext" style="flex:1">Continuar</button>
-          </div>
+      <div class="tar-sign rv">
+        <span class="tar-sign-tag">TARIFAS</span>
+        <h2 class="dsp">Consulta las tarifas con <em>nuestros asesores</em></h2>
+        <p>El valor depende del <b>tipo de vehículo, el cilindraje, el modelo y el servicio</b>. Un asesor te lo confirma antes de que vengas, sin compromiso.</p>
+        <div class="tar-sign-btns">
+          <a class="btn btn-wa" data-wa="tarifa"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.6 14.3c-.2.6-1.3 1.2-1.9 1.3-.5.1-1.1.1-1.7-.1-.4-.1-1-.3-1.6-.6-2.9-1.3-4.7-4.2-4.9-4.4-.1-.2-1.2-1.6-1.2-3s.8-2.2 1-2.5c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5.2.6.7 1.9.8 2 .1.2.1.4 0 .6-.1.2-.2.3-.3.5-.2.2-.3.4-.5.5-.2.2-.3.4-.1.7.2.3.9 1.4 1.9 2.3 1.3 1.2 2.4 1.5 2.7 1.7.3.2.5.1.7-.1.2-.2.8-.9 1-1.3.2-.3.4-.3.7-.2.3.1 1.8.8 2.1 1 .3.1.5.2.6.3.1.2.1.9-.1 1.5z"/></svg> Escribir a un asesor</a>
+          <a class="btn btn-lime" href="tel:+573213566313"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Llamar · 321 356 6313</a>
+          <button class="btn btn-ghost-w" data-page="agendar">Agendar mi revisión</button>
         </div>
-
-        <!-- resumen en vivo -->
-        <aside class="sim-summary">
-          <div class="sim-sum-hd"><span>Resumen de tu consulta</span></div>
-          <div class="sim-row" id="simRowGroup"><span class="sim-k">Categoría</span><span class="sim-v" id="simCfGroup">—</span></div>
-          <div class="sim-row" id="simRowSub"><span class="sim-k">Vehículo</span><span class="sim-v" id="simCfSub">—</span></div>
-          <div class="sim-row" id="simRowSrv"><span class="sim-k">Servicio</span><span class="sim-v" id="simCfSrv">—</span></div>
-          <div class="sim-price">
-            <span class="sim-price-lbl">Valor</span>
-            <span class="sim-price-val">Te lo confirmamos<br>por WhatsApp</span>
-          </div>
-          <div class="sim-trust">
-            <span>✅ Sin costos ocultos</span>
-            <span>✅ Respuesta inmediata</span>
-            <span>✅ Sin compromiso</span>
-          </div>
-        </aside>
       </div>
     </div>
   </section>
 
-  <section style="padding-top:10px">
+  <!-- DE QUÉ DEPENDE -->
+  <section style="padding-top:8px">
+    <div class="wrap">
+      <div class="sec-head rv" style="margin-bottom:28px">
+        <span class="eyebrow">Qué influye</span>
+        <h2 class="dsp">¿De qué depende <span class="g-accent">el valor</span>?</h2>
+      </div>
+      <div class="g3 rv">
+        <div class="card card-h"><div class="ico ico-lime"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2" y="13" width="20" height="6" rx="1.6"/><circle cx="7" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg></div><h3 style="margin:14px 0 6px">Tipo de vehículo</h3><p>Carro, moto o servicio público. Cada categoría tiene su propio valor.</p></div>
+        <div class="card card-h"><div class="ico ico-lime"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></div><h3 style="margin:14px 0 6px">Cilindraje y modelo</h3><p>Las características de tu vehículo determinan el valor que te corresponde.</p></div>
+        <div class="card card-h"><div class="ico ico-lime"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div><h3 style="margin:14px 0 6px">Servicio que necesitas</h3><p>Revisión técnico-mecánica y de gases, reinspección o peritaje técnico.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CÓMO FUNCIONA -->
+  <section class="steps">
+    <div class="wrap">
+      <div class="sec-head rv">
+        <span class="eyebrow">Así de simple</span>
+        <h2 class="dsp">Conoce tu valor en 3 pasos</h2>
+      </div>
+      <div class="g3 rv">
+        <div class="step"><div class="step-n">01</div><h3>Escríbenos o llámanos</h3><p>Por WhatsApp o al 321 356 6313. Cuéntanos el tipo de vehículo, el modelo y el servicio que necesitas.</p></div>
+        <div class="step"><div class="step-n">02</div><h3>Te confirmamos el valor</h3><p>Un asesor te responde con el valor exacto que aplica a tu caso.</p></div>
+        <div class="step"><div class="step-n">03</div><h3>Agenda y ven</h3><p>Reserva tu turno en línea y llega con tu código de cita.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LO QUE INCLUYE -->
+  <section>
     <div class="wrap">
       <div class="photo-split rv">
         <div class="ph ph-rv"><img data-foto="recepcion" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="Recepción de CDA Revitolima"></div>
         <div>
-          <span class="eyebrow">Sin sorpresas</span>
-          <h2 class="dsp" style="margin-bottom:12px">El valor que te decimos <span class="g-accent">es el que pagas</span></h2>
-          <p style="color:var(--ink-2);font-size:.95rem;margin-bottom:14px">Te confirmamos el precio exacto por WhatsApp antes de que salgas de tu casa. Sin cobros escondidos ni sorpresas al llegar a caja.</p>
-          <div style="display:flex;flex-direction:column;gap:9px">
-            <div class="fact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>Revisión de gases incluida en el mismo proceso</div>
-            <div class="fact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>Puedes pagar en efectivo, tarjeta o a cuotas</div>
-            <div class="fact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>Te explicamos cada punto revisado</div>
+          <span class="eyebrow">Antes de venir</span>
+          <h2 class="dsp" style="margin-bottom:12px">Lo que <span class="g-accent">incluye el valor</span></h2>
+          <p style="color:var(--ink-2);font-size:.95rem;margin-bottom:16px">Te lo explicamos antes de que salgas de tu casa, para que llegues con claridad.</p>
+          <div class="tar-facts">
+            <div class="fact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg><span>La revisión técnico-mecánica y la revisión de gases se realizan en el mismo proceso.</span></div>
+            <div class="fact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg><span>La <b>reinspección se cobra aparte</b> y aplica solo cuando el vehículo debe volver tras corregir una observación.</span></div>
+            <div class="fact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg><span>Recibimos efectivo y tarjeta, y financiamos con Sistecrédito y Addi.</span></div>
           </div>
         </div>
       </div>
     </div>
-  </section>
-
-  <section style="padding-top:0">
-    <div class="wrap"><div class="note-box rv" style="max-width:760px">
-      <b>¿Qué incluye el valor?</b>La revisión técnico-mecánica y la revisión de gases se realizan en el mismo proceso. La <b>reinspección se cobra aparte</b> y aplica solo cuando el vehículo debe volver tras corregir una observación.
-    </div></div>
   </section>
 </div>
 

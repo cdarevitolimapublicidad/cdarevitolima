@@ -221,7 +221,7 @@ const DB = {
       {cat:'resultado', q:'¿Qué pasa si mi vehículo no aprueba?', a:'Te entregamos un <b>informe detallado</b> de lo que debes corregir. Tienes <b>15 días calendario</b> para volver y pagar solo la <b>reinspección</b>, que revisa únicamente los puntos pendientes.'},
       {cat:'resultado', q:'Si me paso de los 15 días, ¿debo pagar todo otra vez?', a:'Sí. Pasados los <b>15 días calendario</b> el proceso se reinicia y debes pagar la <b>revisión completa</b> nuevamente. Por eso te recomendamos corregir y volver lo antes posible.'},
       {cat:'resultado', q:'¿Qué pasa si circulo sin la revisión al día?', a:'Es un comparendo por <b>30 SMLDV</b> y el vehículo puede ser <b>inmovilizado</b>. Renovarla siempre sale mucho más económico que la multa.'},
-      {cat:'pagos', q:'¿Cuánto cuesta la revisión?', a:'El valor depende del <b>cilindraje, modelo y tipo de servicio</b>. Usa nuestro simulador y te confirmamos el valor exacto por WhatsApp en segundos.'},
+      {cat:'pagos', q:'¿Cuánto cuesta la revisión?', a:'El valor depende del <b>cilindraje, modelo y tipo de servicio</b>. Consulta con uno de nuestros asesores por WhatsApp o llamada y te confirmamos el valor exacto.'},
       {cat:'pagos', q:'¿Puedo pagar a cuotas?', a:'Sí. Financiamos con <b>Sistecrédito</b> y <b>Addi</b>, con aprobación en minutos aquí mismo en el centro.'},
       {cat:'pagos', q:'¿Qué medios de pago reciben?', a:'Recibimos <b>efectivo y tarjeta</b>, además de las opciones de financiación.'},
       {cat:'otros', q:'¿Qué es la revisión preventiva de viaje gratis?', a:'🎁 Es nuestro regalo por inscribirte en los recordatorios. Revisamos <b>llantas, frenos, luces y niveles</b> antes de que salgas a carretera, <b>sin costo</b>. Recibes un código que presentas al llegar. <i>No reemplaza la revisión técnico-mecánica obligatoria.</i>'},
@@ -356,7 +356,7 @@ const waMsg = {
   general:'*Hola CDA Revitolima* 👋\n\nQuiero información sobre la _revisión técnico-mecánica_.\n\nVengo desde la página web 🌐',
   agenda:'*SOLICITUD DE CITA* 📅\n\n¡Hola! Quiero agendar mi _revisión técnico-mecánica_.\n\nPor favor confírmenme la disponibilidad ✅',
   confirmarCita:'*CONFIRMACIÓN DE CITA* ✅\n\n¡Hola! Escribo para _confirmar_ mi cita ya agendada en el CDA.',
-  tarifa:'*CONSULTA DE TARIFA* 💰\n\nHola, quiero conocer el valor de mi revisión.',
+  tarifa:'*CONSULTA DE TARIFA* 💰\n\nHola, quiero conocer el valor de mi revisión técnico-mecánica.\n\n• Tipo de vehículo (carro, moto o servicio público): \n• Modelo y cilindraje: \n• Servicio (revisión, reinspección o peritaje): \n\n¡Gracias! 🙏',
   venc:'*MI REVISIÓN ESTÁ POR VENCER* ⏰\n\nHola, quiero agendar antes de que se me venza la revisión técnico-mecánica.',
   fin:'*CONSULTA DE FINANCIACIÓN* 💳\n\nHola, quiero saber sobre el estado de mi crédito con Sistecrédito o Addi.',
   preventiva:'*REVISIÓN PREVENTIVA DE VIAJE — GRATIS* 🎁\n\n¡Hola! Me inscribí en los recordatorios del CDA y quiero _confirmar mi revisión preventiva gratis_.\n\nPor favor ayúdenme a crear la cita 🙌',
@@ -410,7 +410,7 @@ const PAGES = {
   servicios:{t:'Servicios para carros y motos | CDA Revitolima Ibagué',
     d:'Revisión técnico-mecánica, revisión de gases y financiación Sistecrédito en Ibagué, Tolima.'},
   tarifas:{t:'Tarifas de revisión técnico-mecánica | CDA Revitolima',
-    d:'Consulta el valor de la revisión técnico-mecánica para carro o moto en Ibagué.'},
+    d:'Consulta las tarifas de la revisión técnico-mecánica con nuestros asesores. Te confirmamos el valor exacto para tu vehículo en Ibagué.'},
   agendar:{t:'Agenda tu cita de revisión | CDA Revitolima Ibagué',
     d:'Reserva en línea tu turno para la revisión técnico-mecánica en Ibagué, Tolima.'},
   recordatorio:{t:'Recordatorio de vencimiento | CDA Revitolima',
@@ -655,79 +655,6 @@ function bindSubChips(){
   }));
 }
 $$('#vGroupSel [data-vgroup]').forEach(b=>b.addEventListener('click',()=>updateHomeGroup(b.dataset.vgroup)));
-
-/* ---------- SIMULADOR DE TARIFAS (termina en WhatsApp) ---------- */
-const sim = {step:1, group:null, sub:null, srv:null};
-function simShow(n){
-  sim.step=n;
-  $$('[data-simpane]').forEach(p=>p.style.display = +p.dataset.simpane===n?'':'none');
-  $$('#simSteps .bk-step').forEach((s,i)=>s.classList.toggle('on', i<n));
-  $('#simBack').style.display = n>1?'':'none';
-  $('#simNext').textContent = n===3?'Consultar por WhatsApp':'Continuar';
-}
-function simSync(){
-  const g=$('#simCfGroup'), sb=$('#simCfSub'), sv=$('#simCfSrv');
-  if(g){ g.textContent = sim.group? VTREE[sim.group].label : '—'; g.parentElement.classList.toggle('done',!!sim.group); }
-  if(sb){ sb.textContent = sim.sub? vLabel(sim.sub) : '—'; sb.parentElement.classList.toggle('done',!!sim.sub); }
-  if(sv){ const x=SERVICES.find(s=>s.id===sim.srv); sv.textContent = x? x.name : '—'; sv.parentElement.classList.toggle('done',!!sim.srv); }
-}
-$$('[data-simgroup]').forEach(b=>b.addEventListener('click',()=>{
-  sim.group=b.dataset.simgroup; sim.sub=null; sim.srv=null;
-  renderGroupSel($('#simGroupSel'), sim.group);
-  $('#simSubSel').innerHTML = subChipsHTML(sim.group, null, 'data-simsub');
-  $('#simSubWrap').style.display='';
-  $$('#simSubSel [data-simsub]').forEach(x=>x.addEventListener('click',()=>{
-    if(x.disabled) return;
-    sim.sub=x.dataset.simsub;
-    $$('#simSubSel .vsub-chip').forEach(y=>y.classList.remove('sel'));
-    x.classList.add('sel'); simSync();
-  }));
-  simSync();
-}));
-$('#simBack').addEventListener('click',()=>simShow(sim.step-1));
-$('#simNext').addEventListener('click',()=>{
-  if(sim.step===1){
-    if(!sim.group) return toast('Selecciona una categoría');
-    if(!sim.sub) return toast('Selecciona el tipo exacto de vehículo');
-    $('#simSrvSel').innerHTML = SERVICES.filter(s=>s.groups.includes(sim.group)).map(s=>
-      `<button class="vsub-chip" data-simsrv="${s.id}" style="text-align:left;padding:13px 16px">${s.name}</button>`).join('');
-    $$('#simSrvSel [data-simsrv]').forEach(x=>x.addEventListener('click',()=>{
-      sim.srv=x.dataset.simsrv;
-      $$('#simSrvSel .vsub-chip').forEach(y=>y.classList.remove('sel'));
-      x.classList.add('sel'); simSync();
-    }));
-    return simShow(2);
-  }
-  if(sim.step===2){
-    if(!sim.srv) return toast('Selecciona el servicio que necesitas');
-    simSync();
-    return simShow(3);
-  }
-  // paso 3 -> whatsapp con mensaje formateado
-  const srv = SERVICES.find(s=>s.id===sim.srv);
-  const msg = `*CONSULTA DE TARIFA* 💰\n\n`+
-    `Categoría: *${VTREE[sim.group].label}*\n`+
-    `Vehículo: *${vLabel(sim.sub)}*\n`+
-    `Servicio: *${srv.name}*\n\n`+
-    `_Por favor confírmenme el valor exacto para mi caso._\n\n`+
-    `¡Gracias! 🙏`;
-  logAct(`Consulta de tarifa simulada · ${vLabel(sim.sub)} · ${srv.name}`);
-  window.open(`https://wa.me/${WA_GENERAL}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
-});
-
-/* ---------- CATEGORÍAS EN AGENDAMIENTO (cascada) ---------- */
-$$('[data-bgroup]').forEach(b=>b.addEventListener('click',()=>{
-  bk.group=b.dataset.bgroup; bk.veh=null;
-  renderGroupSel($('#bkGroupSel'), bk.group);
-  $('#bkSubSel').innerHTML = subChipsHTML(bk.group, null, 'data-bsub');
-  $('#bkSubWrap').style.display='';
-  $$('#bkSubSel [data-bsub]').forEach(x=>x.addEventListener('click',()=>{
-    if(x.disabled) return;
-    bk.veh=x.dataset.bsub;
-    $$('#bkSubSel .vsub-chip').forEach(y=>y.classList.remove('sel'));
-    x.classList.add('sel');
-  }));
-}));
 
 /* ---------- AGENDAMIENTO ---------- */
 const bk={step:1,group:null,veh:null,date:null,time:null};
@@ -1088,8 +1015,8 @@ const AI_KB = () => ([
    a:`📞 <b>Tenemos dos líneas:</b><br><br>• <b>321 356 6313</b> — información general y asesoría<br>• <b>311 570 8511</b> — revisión preventiva gratis 🎁`,
    btn:{t:'Escribir por WhatsApp', wa:'general'}},
   {kw:['precio','tarifa','valor','cuanto cuesta','cuesta','vale'],
-   a:`💰 El valor depende del <b>cilindraje, modelo y servicio</b>, por eso no publicamos un precio fijo.<br><br>En <b>3 toques</b> te armo el mensaje con tu consulta lista para enviar. 👇`,
-   btn:{t:'Consultar mi tarifa', page:'tarifas'}},
+   a:`💰 El valor depende del <b>cilindraje, modelo y servicio</b>, por eso no publicamos un precio fijo.<br><br>Un <b>asesor</b> te confirma el valor exacto para tu vehículo. 👇`,
+   btn:{t:'Consultar con un asesor', wa:'tarifa'}},
   {kw:['agendar','cita','turno','reservar','separar'],
    a:`📅 ¡Claro! Puedes agendar en línea eligiendo <b>tipo de vehículo, fecha y hora</b>. Recibes un <b>código de cita</b> para presentar al llegar.`,
    btn:{t:'Agendar ahora', page:'agendar'}},
@@ -2007,7 +1934,7 @@ function renderAdmin(){
   $('#avCfg').innerHTML = `
     <div class="panel"><div class="panel-h"><div><h3>Tarifas de referencia interna</h3><p>El sitio público ya no muestra valores — el cliente siempre termina en WhatsApp. Estos campos son solo para que el equipo tenga la referencia a la mano al responder.</p></div></div>
       <div class="panel-b">
-        <div class="note-box" style="margin-bottom:16px"><b>Por qué cambiamos esto</b>Publicar precios generaba confusión cuando variaban por modelo o cilindraje. Ahora el simulador de tarifas recopila el vehículo y el servicio, y entrega esa información lista dentro del mensaje de WhatsApp — la confirmación del valor la da siempre una persona.</div>
+        <div class="note-box" style="margin-bottom:16px"><b>Por qué cambiamos esto</b>Publicar precios generaba confusión cuando variaban por modelo o cilindraje. Ahora la página de Tarifas invita a consultar con un asesor por WhatsApp o llamada — la confirmación del valor la da siempre una persona.</div>
         <div class="cfg-row"><div><b>Carro · Revisión técnico-mecánica</b><small>Valor de referencia interna, no se publica</small></div>
           <input class="finput" id="tCarRtm" inputmode="numeric" value="${t.carro.rtm??''}" placeholder="Sin registrar"></div>
         <div class="cfg-row"><div><b>Carro · Reinspección</b><small>Valor de referencia interna, no se publica</small></div>
@@ -3783,7 +3710,6 @@ $('#admExportTop').addEventListener('click',()=>{
 /* ---------- INIT ---------- */
 syncPublic();
 bkShow(1);
-simShow(1);
 refreshBadges();
 bindExports();
 
