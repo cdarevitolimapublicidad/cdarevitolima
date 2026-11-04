@@ -1797,8 +1797,8 @@ function alertasDeVehiculo(v){
   [['RTM',v.due],['SOAT',v.soat]].forEach(([tipo,fecha])=>{
     if(!fecha) return;
     const d=daysTo(fecha);
-    // ventana: hoy (0), 3 días, 10 días antes — mostramos todo el rango -∞..10, con foco en los hitos
-    if(d<=10){ out.push({tipo,fecha,dias:d}); }
+    // ventana: solo lo próximo, de hoy (0) hasta 10 días antes del vencimiento.
+    if(d>=0 && d<=10){ out.push({tipo,fecha,dias:d}); }
   });
   return out;
 }
@@ -1818,10 +1818,10 @@ function renderAlertas(){
     });
   });
   filas.sort((x,y)=>x.dias-y.dias);
-  const hoy=filas.filter(f=>f.dias<=0).length, tres=filas.filter(f=>f.dias>0&&f.dias<=3).length, diez=filas.filter(f=>f.dias>3&&f.dias<=10).length;
+  const hoy=filas.filter(f=>f.dias===0).length, tres=filas.filter(f=>f.dias>0&&f.dias<=3).length, diez=filas.filter(f=>f.dias>3&&f.dias<=10).length;
   box.innerHTML = `
     <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
-      ${kpi('Vence hoy o antes',hoy,'alert','Contacto inmediato','alert')}
+      ${kpi('Vence hoy',hoy,'alert','Contacto inmediato','alert')}
       ${kpi('En 3 días',tres,'bell','Urgente','warn')}
       ${kpi('En 10 días',diez,'clock','Por preparar','warn')}
     </div>
@@ -1880,7 +1880,7 @@ function renderPipeline(){
         const d=daysTo(f.fecha);
         const msg=`Hola ${f.name.split(' ')[0]||''}, seguimos pendientes de la renovación de su ${f.tipo} (placa ${f.plate}). ¿Le ayudamos a agendar? 🚗`;
         const wa=f.phone?`https://wa.me/57${f.phone}?text=${encodeURIComponent(msg)}`:'';
-        return `<div class="kb-card" data-fup="${f.id}">
+        return `<div class="kb-card" data-fup="${f.id}" data-kbcli="${f.clientId}" title="Ver ficha del cliente">
           <div class="kb-plate"><span class="plate">${f.plate}</span><span class="pill ${f.tipo==='SOAT'?'pill-neu':'pill-warn'}" style="font-size:.6rem">${f.tipo}</span></div>
           <div class="kb-name">${f.name}</div>
           <div class="kb-meta">${fmtDate(f.fecha)} · <span style="color:${alertColor(d)}">${alertLabel(d)}</span></div>
@@ -1907,6 +1907,10 @@ function renderPipeline(){
       <tbody>${noInt.map(f=>`<tr><td><span class="plate">${f.plate}</span></td><td>${f.name}</td><td class="num">${f.phone||'—'}</td>
         <td>${f.tipo}</td><td><button class="btn btn-o btn-xs" data-fupreabrir="${f.id}">Reactivar</button></td></tr>`).join('')}</tbody></table></div>`) : ''}`;
   // mover de etapa
+  $$('#avPipe .kb-card[data-kbcli]').forEach(card=>card.addEventListener('click',e=>{
+    if(e.target.closest('.kb-move') || e.target.closest('.kb-wa')) return; // no abrir si tocó el selector o WhatsApp
+    openCli(card.dataset.kbcli);
+  }));
   $$('#avPipe [data-fupmove]').forEach(s=>s.addEventListener('change',()=>{
     const f=DB.followups.find(x=>x.id===s.dataset.fupmove); if(!f) return;
     f.estado=s.value; f.hist=f.hist||[]; f.hist.push({et:s.value,fecha:iso(today)});
