@@ -35,7 +35,7 @@ const sbCan = {
     role === 'asesor' ? [...SB_OPS, 'log'].includes(c) : false
 };
 
-let sbRole = null, sbReady = false, sbBusy = false;
+let sbRole = null, sbReady = false, sbBusy = false, sbStage = '';
 let sbSnap = {};                       // coll -> Map(id -> JSON guardado)
 let sbLast = '1970-01-01T00:00:00Z';   // último updated_at recibido del servidor
 let sbFlushTimer = null, sbPullTimer = null;
@@ -79,33 +79,44 @@ function sbMask(email) {
   const [u, d] = String(email).split('@');
   return (u || '').slice(0, 2) + '***@' + (d || '');
 }
+/* Error con el motivo exacto (se muestra bajo el mensaje y queda en la consola del navegador). */
+function sbFail(code, step, err) {
+  const e = new Error(code);
+  e.detail = step + (err && err.message ? ' → ' + err.message : '');
+  console.warn('[acceso]', step, err || '');
+  return e;
+}
 async function sbAdminLogin(usuario, pass) {
-  if (!SB) throw new Error('SIN_CONEXION');
+  if (!SB) throw sbFail('SIN_CONEXION', 'el sitio no pudo cargar Supabase');
   usuario = String(usuario || '').trim();
   if (!usuario || !pass) throw new Error('CREDENCIALES');
   // El usuario se traduce al correo en el servidor. Si no existe devuelve uno falso,
   // para que el mensaje de error sea idéntico en ambos casos.
   let email;
   try { email = String(await sbRpc('correo_de_usuario', { p_usuario: usuario })).toLowerCase(); }
-  catch (e) { throw new Error('ERROR_SERVIDOR'); }
+  catch (e) { throw sbFail('ERROR_SERVIDOR', 'paso 1 · buscar el usuario', e); }
   const { error } = await SB.auth.signInWithPassword({ email, password: pass });
-  if (error) throw new Error('CREDENCIALES');
-  const prof = await sbRpc('mi_perfil');
-  if (!prof) { await SB.auth.signOut(); throw new Error('SIN_ACCESO'); }
+  if (error) throw sbFail('CREDENCIALES', 'paso 2 · contraseña', error);
+  let prof;
+  try { prof = await sbRpc('mi_perfil'); }
+  catch (e) { await SB.auth.signOut(); throw sbFail('ERROR_SERVIDOR', 'paso 3 · permisos', e); }
+  if (!prof) { await SB.auth.signOut(); throw sbFail('SIN_ACCESO', 'paso 3 · el correo ' + sbMask(email) + ' no figura como personal activo'); }
   if (ADMIN_EMAIL_2FA) {
     // La contraseña ya se verificó: se cierra esa sesión y solo se abre con el código del correo.
     await SB.auth.signOut();
     const { error: e2 } = await SB.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-    if (e2) throw new Error('CODIGO_NO_ENVIADO');
+    if (e2) throw sbFail('CODIGO_NO_ENVIADO', 'paso 4 · enviar el código', e2);
     return { needCode: true, email, hint: sbMask(email) };
   }
   return { profile: prof };
 }
 async function sbAdminVerify(email, code) {
   const { error } = await SB.auth.verifyOtp({ email, token: String(code || '').trim(), type: 'email' });
-  if (error) throw new Error('CODIGO_INVALIDO');
-  const prof = await sbRpc('mi_perfil');
-  if (!prof) { await SB.auth.signOut(); throw new Error('SIN_ACCESO'); }
+  if (error) throw sbFail('CODIGO_INVALIDO', 'verificar el código', error);
+  let prof;
+  try { prof = await sbRpc('mi_perfil'); }
+  catch (e) { await SB.auth.signOut(); throw sbFail('ERROR_SERVIDOR', 'permisos', e); }
+  if (!prof) { await SB.auth.signOut(); throw sbFail('SIN_ACCESO', 'el correo no figura como personal activo'); }
   return { profile: prof };
 }
 async function sbAdminResume() {
@@ -147,6 +158,7 @@ async function sbStaffStart(profile) {
 
   for (const c of SB_COLLS) {
     if (!sbCan.read(sbRole, c)) { sbSnap[c] = new Map(); continue; }
+    sbStage = c;
     const rows = await sbFetchAll(c);
     rows.forEach(seen);
     if (c === 'bankAccounts' && !rows.length) { sbSnap[c] = new Map(); continue; } // se conservan las cuentas por defecto y se suben
@@ -157,6 +169,7 @@ async function sbStaffStart(profile) {
 
   // Configuración (tarifas, horarios, preguntas...). La primera vez se sube la de por defecto.
   if (sbCan.read(sbRole, 'config')) {
+    sbStage = 'config';
     const { data, error } = await SB.from('cda_docs').select('data,updated_at')
       .eq('coll', 'config').eq('id', 'main').maybeSingle();
     if (error) throw error;

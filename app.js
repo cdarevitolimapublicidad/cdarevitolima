@@ -1592,7 +1592,7 @@ $$('.cred-pick').forEach(b=>b.addEventListener('click',()=>{
   b.style.borderColor='var(--gold)';
 }));
 let adPending=null;
-function adErr(msg){ const e=$('#adErr'); e.textContent=msg; e.classList.add('on'); }
+function adErr(msg,detail){ const e=$('#adErr'); e.textContent=msg; if(detail){ const d=document.createElement('small'); d.style.cssText='display:block;margin-top:5px;opacity:.8;font-size:.78rem;line-height:1.35'; d.textContent='Detalle: '+detail; e.appendChild(d); } e.classList.add('on'); }
 function resetAdminForm(){
   adPending=null; $('#admForm').reset();
   $('#adStep1').style.display=''; $('#adStep2').style.display='none';
@@ -1618,7 +1618,7 @@ function enterAdmin(p){
 }
 async function startAdminSession(p){
   try{ await sbStaffStart(p); }
-  catch(e){ console.warn(e); await sbAdminLogout(); throw new Error('CARGA_FALLIDA'); }
+  catch(e){ console.warn(e); await sbAdminLogout(); const er=new Error('CARGA_FALLIDA'); er.detail='cargar '+(typeof sbStage!=='undefined'&&sbStage?sbStage:'datos')+' → '+((e&&e.message)||e); throw er; }
   enterAdmin(p);
 }
 $('#admForm').addEventListener('submit',async e=>{
@@ -1648,7 +1648,7 @@ $('#admForm').addEventListener('submit',async e=>{
       :m==='CODIGO_NO_ENVIADO'?'No pudimos enviar el código al correo. Intenta de nuevo en unos minutos.'
       :m==='SIN_CONEXION'?'Sin conexión con el servidor. Revisa tu internet.'
       :m==='CARGA_FALLIDA'?'No pudimos cargar los datos. Intenta de nuevo.'
-      :'No pudimos iniciar sesión. Intenta de nuevo.');
+      :'No pudimos iniciar sesión. Intenta de nuevo.', err&&err.detail);
   }finally{
     btn.disabled=false; btn.textContent = adPending ? 'Verificar código' : 'Ingresar al portal';
   }
@@ -3807,6 +3807,6 @@ if(window.CDA_ENTRY==='admin' || window.CDA_ENTRY==='cliente'){
 }
 if(window.CDA_ENTRY==='admin'){
   sbAdminResume().then(p=>{
-    if(p) startAdminSession(p).catch(()=>adErr('No pudimos cargar los datos. Ingresa de nuevo.'));
+    if(p) startAdminSession(p).catch(e=>adErr('No pudimos cargar los datos. Ingresa de nuevo.', e&&e.detail));
   });
 }
