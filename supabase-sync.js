@@ -18,7 +18,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
    'password' = usuario + contraseña (sin correo).
    'code'     = usuario + contraseña + código de 6 dígitos al buzón.
    Para 'link' y 'code' hace falta el SMTP activo en Supabase. */
-const ADMIN_LOGIN_MODE = 'password';
+const ADMIN_LOGIN_MODE = 'link';
 /* Buzón ÚNICO al que llega el enlace/código, entre quien entre. Debe existir en Authentication. */
 const ADMIN_2FA_MAILBOX = 'cdarevitolimapublicidad@gmail.com';
 const ADMIN_EMAIL_2FA = (ADMIN_LOGIN_MODE === 'code');

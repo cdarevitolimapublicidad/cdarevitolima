@@ -1437,7 +1437,8 @@ function vehCard(v){
     <div class="vehcard-t"><div><h4>${v.cat}</h4><small>${v.type==='moto'?'Motocicleta':'Vehículo particular'}</small></div>
       <span class="plate">${v.plate}</span></div>
     <div class="vrow"><span>Última revisión</span><span>${lastRev?fmtDate(lastRev.date):'Sin registro'}</span></div>
-    <div class="vrow"><span>Próximo vencimiento</span><span>${v.due?fmtDate(v.due):'Por registrar'}</span></div>
+    <div class="vrow"><span>Vencimiento RTM</span><span>${v.due?fmtDate(v.due):'Por registrar'}</span></div>
+    <div class="vrow"><span>Vencimiento SOAT</span><span>${v.soat?fmtDate(v.soat):'Por registrar'} ${v.soat?dueBadge(v.soat):''}</span></div>
     <div class="vrow"><span>Estado</span><span>${dueBadge(v.due)}</span></div>
     <div class="bar"><i style="width:${pct}%;background:${dueColor(v.due)}"></i></div>
   </div>`;
@@ -1889,7 +1890,7 @@ function renderAdmin(){
   $('#avVenc').innerHTML = `
     <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
       ${kpi('Vencidas',DB.vehicles.filter(v=>v.due&&daysTo(v.due)<0).length,'alert','Requieren contacto inmediato','alert')}
-      ${kpi('Vencen en 30 días',DB.vehicles.filter(v=>v.due&&daysTo(v.due)>=0&&daysTo(v.due)<=30).length,'bell','Enviar recordatorio','warn')}
+      ${kpi('RTM vence en 30 días',DB.vehicles.filter(v=>v.due&&daysTo(v.due)>=0&&daysTo(v.due)<=30).length,'bell','Enviar recordatorio','warn')}
       ${kpi('Recordatorios activos',DB.reminders.length,'chart',`${conv}% de conversión a cita`)}
     </div>
     ${panelTable('Control de vencimientos','Vehículos ordenados por proximidad de vencimiento.',
@@ -3686,8 +3687,8 @@ const EXPORTS={
     ...DB.clients.map(c=>[c.name,c.doc,c.phone,c.email,
       DB.vehicles.filter(v=>v.clientId===c.id).map(v=>v.plate).join(' / '),
       DB.cartera.filter(k=>k.clientId===c.id&&k.status!=='Pagada').reduce((s,k)=>s+k.amount,0),c.notes])],
-  vehiculos:()=>[['Placa','Tipo','Categoria','Propietario','Documento','Vence','Dias restantes'],
-    ...DB.vehicles.map(v=>{const c=cliOf(v.clientId);return [v.plate,v.type,v.cat,c.name,c.doc,v.due||'',v.due?daysTo(v.due):''];})],
+  vehiculos:()=>[['Placa','Tipo','Categoria','Propietario','Documento','Vence RTM','Dias restantes','Vence SOAT'],
+    ...DB.vehicles.map(v=>{const c=cliOf(v.clientId);return [v.plate,v.type,v.cat,c.name,c.doc,v.due||'',v.due?daysTo(v.due):'',v.soat||''];})],
   citas:()=>[['Fecha','Hora','Cliente','Celular','Placa','Tipo','Origen','Estado'],
     ...DB.appts.map(a=>[a.date,a.time,a.name,a.phone,a.plate,a.type,a.source,a.status])],
   revisiones:()=>[['Fecha','Placa','Propietario','Resultado','Observaciones'],
