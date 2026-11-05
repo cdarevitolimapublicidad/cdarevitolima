@@ -21,6 +21,11 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const ADMIN_LOGIN_MODE = 'code';
 /* Buzón ÚNICO al que llega el enlace/código, entre quien entre. Debe existir en Authentication. */
 const ADMIN_2FA_MAILBOX = 'cdarevitolimapublicidad@gmail.com';
+/* FormSubmit: servicio que envía el código al correo SIN SMTP ni Supabase.
+   Igual que en Electronics BGA. La primera vez hay que activar el correo (un clic
+   en el correo de bienvenida de FormSubmit). */
+const FS_ENDPOINT = 'https://formsubmit.co/ajax/' + ADMIN_2FA_MAILBOX;
+let   _adminCode = null, _adminCodeExp = 0, _adminCodeUser = null;
 const ADMIN_EMAIL_2FA = (ADMIN_LOGIN_MODE === 'code');
 /* Minutos de inactividad antes de cerrar la sesión del administrativo. */
 const ADMIN_IDLE_MIN = 30;
@@ -33,14 +38,14 @@ try {
 } catch (e) { console.warn('Supabase no disponible', e); }
 
 /* ---------- Colecciones y permisos (espejo del servidor; la autoridad es RLS) ---------- */
-const SB_COLLS = ['clients','vehicles','appts','revisions','credits','cartera','reminders','cashLedger','bankAccounts','followups'];
+const SB_COLLS = ['clients','vehicles','appts','revisions','credits','cartera','reminders','cashLedger','bankAccounts','followups','advisors'];
 const SB_OPS   = ['clients','vehicles','appts','reminders','revisions'];
 const sbCan = {
   read:  (role, c) => role !== 'asesor' || [...SB_OPS, 'config', 'log'].includes(c),
   write: (role, c) =>
     role === 'superusuario' || role === 'superadministrador' ? true :
     role === 'administrador' ? c !== 'config' :
-    role === 'asesor' ? [...SB_OPS, 'log'].includes(c) : false
+    role === 'asesor' ? [...SB_OPS, 'log', 'advisors'].includes(c) : false
 };
 
 let sbRole = null, sbReady = false, sbBusy = false, sbStage = '';
@@ -122,17 +127,25 @@ async function sbAdminLogin(usuario, pass) {
   return { profile: prof };
 }
 async function sbAdminVerify(email, code, pending) {
-  // El código se envió al buzón de seguridad; se verifica contra ese mismo buzón.
-  const { error } = await SB.auth.verifyOtp({ email: ADMIN_2FA_MAILBOX, token: String(code || '').trim(), type: 'email' });
-  if (error) throw sbFail('CODIGO_INVALIDO', 'verificar el código', error);
-  // El código abrió una sesión del BUZÓN. El portal usa el perfil de la persona que escribió
-  // su usuario y contraseña (pending): ese es el rol con el que realmente trabaja.
+  code = String(code || '').trim();
+  const usuario = pending || _adminCodeUser;
+  // Verificar el código que generó el sitio (enviado por FormSubmit).
+  if (!_adminCode || Date.now() > _adminCodeExp) throw sbFail('CODIGO_INVALIDO', 'el código venció, pide uno nuevo');
+  if (code !== _adminCode) throw sbFail('CODIGO_INVALIDO', 'verificar el código');
+  _adminCode = null; // un solo uso
+  // Abrir la sesión de Supabase (necesaria para leer/escribir datos) con la contraseña del usuario.
+  let realEmail;
+  try { realEmail = String(await sbRpc('correo_de_usuario', { p_usuario: usuario })).toLowerCase(); }
+  catch (e) { throw sbFail('ERROR_SERVIDOR', 'identificar al usuario', e); }
+  const { error } = await SB.auth.signInWithPassword({ email: realEmail, password: usuario });
+  if (error) throw sbFail('SIN_ACCESO', 'no se pudo abrir la sesión; revisa la contraseña del usuario', error);
   let prof;
-  try { prof = await sbRpc('mi_perfil', { p_email: pending || null }); }
+  try { prof = await sbRpc('mi_perfil'); }
   catch (e) { await SB.auth.signOut(); throw sbFail('ERROR_SERVIDOR', 'permisos', e); }
   if (!prof) { await SB.auth.signOut(); throw sbFail('SIN_ACCESO', 'el usuario no figura como personal activo'); }
   return { profile: prof };
 }
+
 /* Camino B: enviar un enlace de acceso al buzón. El enlace, al abrirse, crea la sesión.
    Recordamos en este navegador a quién se dejará entrar (su usuario), para asignar el rol al volver. */
 async function sbAdminSendLink(usuario) {
@@ -166,15 +179,35 @@ const ADMIN_ROSTER = [
 ];
 /* Toca una tarjeta → se envía el código al buzón; al verificar entra con el rol de esa persona. */
 async function sbAdminRequestCode(usuario) {
-  if (!SB) throw sbFail('SIN_CONEXION', 'el sitio no pudo cargar Supabase');
   usuario = String(usuario || '').trim();
+  // Resolver el correo real del usuario (para los permisos después) y validar que exista.
   let email;
   try { email = String(await sbRpc('correo_de_usuario', { p_usuario: usuario })).toLowerCase(); }
   catch (e) { throw sbFail('ERROR_SERVIDOR', 'paso 1 · identificar al usuario', e); }
   if (email.endsWith('@no-existe.invalid')) throw sbFail('SIN_ACCESO', 'ese usuario no está activo');
-  const { error } = await SB.auth.signInWithOtp({ email: ADMIN_2FA_MAILBOX, options: { shouldCreateUser: false } });
-  if (error) throw sbFail('CODIGO_NO_ENVIADO', 'paso 2 · enviar el código al buzón', error);
-  return { needCode: true, email: ADMIN_2FA_MAILBOX, pending: email, hint: sbMask(ADMIN_2FA_MAILBOX) };
+  // Generar código de 6 dígitos y enviarlo por FormSubmit.
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  _adminCode = code; _adminCodeExp = Date.now() + 10 * 60 * 1000; _adminCodeUser = usuario;
+  try {
+    const r = await fetch(FS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: '🔐 Código de acceso · CDA Revitolima',
+        Usuario: usuario,
+        Codigo: code,
+        Vence: 'en 10 minutos',
+        Fecha: new Date().toLocaleString('es-CO'),
+        _template: 'table'
+      })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.success === 'false') throw new Error(data.message || 'FormSubmit rechazó el envío');
+  } catch (e) {
+    _adminCode = null;
+    throw sbFail('CODIGO_NO_ENVIADO', 'paso 2 · enviar el código por correo', e);
+  }
+  return { needCode: true, pending: usuario, hint: sbMask(ADMIN_2FA_MAILBOX) };
 }
 
 async function sbAdminResume() {

@@ -142,10 +142,27 @@ const SERVICES = [
 ];
 
 /* ---------- USUARIOS Y ASESORES (multi-rol) ---------- */
-const ADVISORS = [
+let ADVISORS = [
   {id:'ad1', name:'Diego Ramírez', phone:'3001112233'},
   {id:'ad2', name:'Carolina Muñoz', phone:'3002223344'}
 ];
+// Sincroniza ADVISORS con los asesores guardados en la nube (DB.config.asesores)
+function syncAdvisors(){
+  const base=[{id:'ad1',name:'Diego Ramírez',phone:'3001112233'},{id:'ad2',name:'Carolina Muñoz',phone:'3002223344'}];
+  const extra=Array.isArray(DB.advisors)?DB.advisors:[];
+  const map={}; [...base,...extra].forEach(a=>{ if(a&&a.id) map[a.id]=a; });
+  ADVISORS = Object.values(map);
+}
+// Crea un asesor nuevo por nombre y lo guarda para que el sistema lo reconozca
+function crearAsesor(nombre){
+  nombre=String(nombre||'').trim(); if(nombre.length<3) return null;
+  const existe=ADVISORS.find(a=>a.name.toLowerCase()===nombre.toLowerCase());
+  if(existe) return existe.id;
+  const nuevo={id:uid('ad'),name:nombre,phone:''};
+  DB.advisors=DB.advisors||[]; DB.advisors.push(nuevo);
+  syncAdvisors(); logAct('Asesor registrado · '+nombre);
+  return nuevo.id;
+}
 
 /* ═══════ LOS 4 PERFILES DEL SISTEMA ═══════
    1. superusuario       → gerencia. Ve gráficas, informes y generalidades de TODAS las áreas.
@@ -249,6 +266,8 @@ const DB = {
   // Seguimiento de vencimientos (pipeline). Un registro por vehículo gestionado.
   // estado: nuevo|contacto1|contacto2|agendada|asistida|seguimiento24|cerrado|noInteresado
   followups:[],
+  // Asesores creados desde el sistema (los nuevos que se van registrando).
+  advisors:[],
   // Cuentas bancarias para registro de ingresos (Finanzas)
   bankAccounts:[
     {id:'b1', name:'Bancolombia · Cuenta corriente', balance:0},
@@ -1546,6 +1565,7 @@ function resetAdminForm(){
   const b=$('#admForm button[type=submit]'); b.disabled=false; b.style.display='none'; b.textContent='Ingresar al portal';
 }
 function enterAdmin(p){
+  syncAdvisors();
   const u={id:p.email,username:p.username||p.email,name:p.name,role:p.role,advisorId:p.advisorId||undefined};
   window.CDA_STAFF=true;
   admIn=true; currentUser=u; lastActivityAt=Date.now();
@@ -1583,7 +1603,7 @@ async function pedirCodigoPerfil(usuario){
   const cont=$('#adRoster'); if(cont) cont.style.pointerEvents='none';
   try{
     const r=await sbAdminRequestCode(usuario);
-    adPending=r.email; adPendingUser=r.pending;
+    adPending=r.pending; adPendingUser=r.pending;
     $('#adStep0').style.display='none';
     $('#adStep2').style.display='';
     $('#adCodeMail').textContent=r.hint;
@@ -1696,8 +1716,8 @@ const NAV_META = {
   clientes:{label:'Clientes', ico:'<circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1"/>', grupo:'Operación'},
   vehiculos:{label:'Vehículos', ico:'<path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2" y="13" width="20" height="6" rx="1.6"/>', grupo:'Operación'},
   venc:{label:'Vencimientos', ico:'<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>', grupo:'Operación', badge:'bgVenc'},
-  alertas:{label:'Alertas de vencimiento', ico:'<path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5M12 17.5v.5"/>', grupo:'Seguimiento', badge:'bgAlertas'},
-  pipeline:{label:'Seguimiento (pipeline)', ico:'<rect x="3" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/>', grupo:'Seguimiento', badge:'bgPipe'},
+  alertas:{label:'Alertas', ico:'<path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5M12 17.5v.5"/>', grupo:'Seguimiento', badge:'bgAlertas'},
+  pipeline:{label:'Seguimiento', ico:'<rect x="3" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/>', grupo:'Seguimiento', badge:'bgPipe'},
   cartera:{label:'Cartera', ico:'<path d="M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h11l5 4"/>', grupo:'Financiero'},
   fin:{label:'Créditos', ico:'<rect x="2" y="5" width="20" height="14" rx="2.4"/><path d="M2 10h20M6 15h4"/>', grupo:'Financiero'},
   finanzas:{label:'Finanzas', ico:'<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', grupo:'Financiero'},
@@ -1716,7 +1736,7 @@ function buildNav(role){
     if(g!=='Mi vista') html += `<div class="snav-lbl">${g}</div>`;
     items.forEach((k,i)=>{
       const m = NAV_META[k];
-      html += `<a data-av="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">${m.ico}</svg>${m.label}`
+      html += `<a data-av="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">${m.ico}</svg><span class="snav-txt">${m.label}</span>`
            + (m.badge?`<span class="bdg" id="${m.badge}">0</span>`:'') + `</a>`;
     });
   });
@@ -1868,6 +1888,70 @@ function abrirContacto(key){
   }));
 }
 
+function abrirAgendarPipeline(f){
+  const v=vehByPlate(f.plate)||{type:'automovil'};
+  const slots=(DB.config && DB.config.slots)||['08:00','09:00','10:00','11:00','14:00','15:00','16:00'];
+  // estado local del agendador
+  let pcDate=iso(today), pcTime=null, pcServ='revision';
+  function gridHTML(){
+    const d=pcDate;
+    const libres=slots.filter(t=>!DB.appts.some(a=>a.date===d && a.time===t && a.status!=='Cancelada'));
+    return `<div class="pc-slots">${slots.map(t=>{
+      const ocup=DB.appts.some(a=>a.date===d && a.time===t && a.status!=='Cancelada');
+      const sel = t===pcTime;
+      return `<button type="button" class="pc-slot${ocup?' ocup':''}${sel?' sel':''}" ${ocup?'disabled':''} data-pcslot="${t}">${t}${ocup?'<small>Ocupado</small>':''}</button>`;
+    }).join('')}</div>
+    <p class="pc-hint">${libres.length} horario(s) libre(s) el ${fmtDate(d)}.</p>`;
+  }
+  const asesoresOpts = ADVISORS.map(a=>`<option value="${a.id}" ${currentUser&&currentUser.advisorId===a.id?'selected':''}>${a.name}</option>`).join('');
+  modal('Agendar cita · '+f.plate, `
+    <div class="pc-wrap">
+      <p style="font-size:.88rem;color:var(--ink-2);margin-bottom:12px">Cliente <b>${f.name}</b> · vence ${f.tipo} el <b>${fmtDate(f.fecha)}</b>. Elige día y una hora libre del calendario.</p>
+      <div class="fgrid" style="margin-bottom:12px">
+        <div><label class="flabel">Día</label><input id="pcDate" class="finput" type="date" min="${iso(today)}" value="${pcDate}"></div>
+        <div><label class="flabel">Servicio</label><select id="pcServ" class="finput">
+          <option value="revision">Revisión técnico-mecánica (${f.tipo})</option>
+          <option value="preventiva">Revisión preventiva</option>
+        </select></div>
+      </div>
+      <label class="flabel">Horario disponible</label>
+      <div id="pcGrid">${gridHTML()}</div>
+      <div style="margin-top:12px">
+        <label class="flabel">Asesor que agenda</label>
+        <input id="pcAdvName" class="finput" list="pcAdvList" placeholder="Escribe o elige un asesor" autocomplete="off">
+        <datalist id="pcAdvList">${ADVISORS.map(a=>`<option value="${a.name}">`).join('')}</datalist>
+        <small style="display:block;margin-top:5px;color:var(--ink-3);font-size:.76rem">Si escribes un nombre nuevo, se crea y el sistema lo recuerda.</small>
+      </div>
+    </div>`,
+    `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="pcSave">Crear cita</button>`);
+  // preseleccionar el asesor del usuario si lo tiene
+  const yo=ADVISORS.find(a=>currentUser&&a.id===currentUser.advisorId); if(yo) $('#pcAdvName').value=yo.name;
+  function repaint(){ $('#pcGrid').innerHTML=gridHTML();
+    $$('#pcGrid [data-pcslot]').forEach(b=>b.addEventListener('click',()=>{ pcTime=b.dataset.pcslot; repaint(); })); }
+  repaint();
+  $('#pcDate').addEventListener('change',e=>{ pcDate=e.target.value; pcTime=null; repaint(); });
+  $('#pcServ').addEventListener('change',e=>{ pcServ=e.target.value; });
+  $('#pcSave').addEventListener('click',()=>{
+    if(!pcTime) return toast('Toca una hora libre en el calendario');
+    if(DB.appts.some(a=>a.date===pcDate && a.time===pcTime && a.status!=='Cancelada')) return toast('Ese horario acaba de ocuparse. Elige otro.');
+    // asesor: usar el escrito; si es nuevo, crearlo
+    const advName=$('#pcAdvName').value.trim();
+    let advId=null;
+    if(advName){ const hit=ADVISORS.find(a=>a.name.toLowerCase()===advName.toLowerCase()); advId = hit?hit.id:crearAsesor(advName); }
+    const cl=cliOf(f.clientId);
+    const ap={id:uid('a'),clientId:f.clientId,plate:f.plate,name:f.name,phone:f.phone,email:(cl&&cl.email)||'',
+      type:(v&&v.type)||'automovil',date:pcDate,time:pcTime,status:'Confirmada',source:'Seguimiento',
+      code:genCode('CIT'),advisorId:advId,confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:true,
+      origen:'pipeline', venc:f.tipo};
+    if(pcServ==='preventiva') ap.tipoServicio='preventiva';
+    DB.appts.push(ap);
+    f.apptId=ap.id; f.estado='agendada'; f.hist=f.hist||[]; f.hist.push({et:'agendada',fecha:iso(today),cita:pcDate+' '+pcTime});
+    logAct(`Pipeline · cita creada ${f.plate} · ${fmtDate(pcDate)} ${pcTime} (${pcServ})`);
+    closeModal(); renderAdmin();
+    toast('✅ Cita creada y visible en el calendario'+(pcServ==='preventiva'?' y Preventivas':''));
+  });
+}
+
 function renderPipeline(){
   const box=$('#avPipe'); if(!box) return;
   const activos=DB.followups.filter(f=>f.estado!=='noInteresado');
@@ -1880,7 +1964,7 @@ function renderPipeline(){
         const d=daysTo(f.fecha);
         const msg=`Hola ${f.name.split(' ')[0]||''}, seguimos pendientes de la renovación de su ${f.tipo} (placa ${f.plate}). ¿Le ayudamos a agendar? 🚗`;
         const wa=f.phone?`https://wa.me/57${f.phone}?text=${encodeURIComponent(msg)}`:'';
-        return `<div class="kb-card" data-fup="${f.id}" data-kbcli="${f.clientId}" title="Ver ficha del cliente">
+        return `<div class="kb-card" draggable="true" data-fup="${f.id}" data-kbcli="${f.clientId}" title="Arrastra para mover · clic para ver ficha">
           <div class="kb-plate"><span class="plate">${f.plate}</span><span class="pill ${f.tipo==='SOAT'?'pill-neu':'pill-warn'}" style="font-size:.6rem">${f.tipo}</span></div>
           <div class="kb-name">${f.name}</div>
           <div class="kb-meta">${fmtDate(f.fecha)} · <span style="color:${alertColor(d)}">${alertLabel(d)}</span></div>
@@ -1913,13 +1997,40 @@ function renderPipeline(){
   }));
   $$('#avPipe [data-fupmove]').forEach(s=>s.addEventListener('change',()=>{
     const f=DB.followups.find(x=>x.id===s.dataset.fupmove); if(!f) return;
-    f.estado=s.value; f.hist=f.hist||[]; f.hist.push({et:s.value,fecha:iso(today)});
-    logAct(`Pipeline · ${f.plate} → ${s.value}`); renderAdmin();
+    const nuevo=s.value;
+    // Al pasar a "Cita agendada": crear la cita REAL en la agenda (aparece en Citas y, si es preventiva, en Preventivas).
+    if(nuevo==='agendada' && f.estado!=='agendada'){ abrirAgendarPipeline(f); s.value=f.estado; return; }
+    // Al pasar a "Cita asistida": marcar la cita como completada.
+    if(nuevo==='asistida' && f.apptId){
+      const ap=DB.appts.find(a=>a.id===f.apptId); if(ap){ ap.status='Completada'; ap.confirmedArrival=true; }
+    }
+    f.estado=nuevo; f.hist=f.hist||[]; f.hist.push({et:nuevo,fecha:iso(today)});
+    logAct(`Pipeline · ${f.plate} → ${nuevo}`); renderAdmin();
   }));
   $$('#avPipe [data-fupreabrir]').forEach(b=>b.addEventListener('click',()=>{
     const f=DB.followups.find(x=>x.id===b.dataset.fupreabrir); if(!f) return;
     f.estado='contacto1'; f.hist.push({et:'reactivado',fecha:iso(today)}); logAct(`Reactivado en pipeline · ${f.plate}`); toast('Reactivado'); renderAdmin();
   }));
+  // Arrastrar tarjetas entre columnas
+  let dragId=null;
+  $$('#avPipe .kb-card[data-fup]').forEach(card=>{
+    card.addEventListener('dragstart',e=>{ dragId=card.dataset.fup; card.classList.add('kb-dragging'); e.dataTransfer.effectAllowed='move'; });
+    card.addEventListener('dragend',()=>{ dragId=null; card.classList.remove('kb-dragging'); $$('#avPipe .kb-col').forEach(c=>c.classList.remove('kb-over')); });
+  });
+  $$('#avPipe [data-kbcol]').forEach(colEl=>{
+    colEl.addEventListener('dragover',e=>{ e.preventDefault(); colEl.classList.add('kb-over'); });
+    colEl.addEventListener('dragleave',()=>colEl.classList.remove('kb-over'));
+    colEl.addEventListener('drop',e=>{
+      e.preventDefault(); colEl.classList.remove('kb-over');
+      const f=DB.followups.find(x=>x.id===dragId); if(!f) return;
+      const destino=colEl.dataset.kbcol; if(destino===f.estado) return;
+      // "Cita agendada" abre el calendario; las demás mueven directo
+      if(destino==='agendada'){ abrirAgendarPipeline(f); return; }
+      if(destino==='asistida' && f.apptId){ const ap=DB.appts.find(a=>a.id===f.apptId); if(ap){ ap.status='Completada'; ap.confirmedArrival=true; } }
+      f.estado=destino; f.hist=f.hist||[]; f.hist.push({et:destino,fecha:iso(today)});
+      logAct(`Pipeline (arrastre) · ${f.plate} → ${destino}`); renderAdmin();
+    });
+  });
   bindWA();
 }
 
