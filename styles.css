@@ -1610,3 +1610,10 @@ td small{display:block;color:var(--ink-3);font-size:.76rem;margin-top:1px}
 .pc-slot.ocup{background:#F4F2EA;color:var(--ink-3);cursor:not-allowed;border-style:dashed}
 .pc-slot small{font-size:.6rem;font-weight:600;opacity:.8}
 .pc-hint{font-size:.78rem;color:var(--ink-3);margin-top:8px}
+
+
+/* Nombre de cliente clicable en tablas */
+.lnkcli{background:none;border:none;padding:0;text-align:left;cursor:pointer;font-family:inherit;color:inherit;display:block}
+.lnkcli b{display:block;line-height:1.2;border-bottom:1px dotted transparent}
+.lnkcli:hover b{color:var(--green-700);border-bottom-color:var(--green-700)}
+.lnkcli small{color:var(--ink-3)}

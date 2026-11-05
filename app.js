@@ -284,6 +284,9 @@ const DB = {
    CIT-AAMMDD-XXX  → cita normal agendada desde la web
    PRV-AAMMDD-XXX  → bono de revisión preventiva gratis (se redime en caja)
    Sirven para que las digitadoras ubiquen el registro sin pedir más datos. */
+// Normaliza un código de bono para comparar sin importar guiones, espacios ni mayúsculas.
+function normBono(s){ return String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,''); }
+function buscarBono(code){ const n=normBono(code); return n?DB.reminders.find(x=>normBono(x.giftCode)===n):null; }
 function genCode(prefix){
   const d=new Date();
   const ymd = String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
@@ -2513,7 +2516,7 @@ function openApt(id){
     `<p style="font-size:.88rem;color:var(--ink-2);margin-bottom:10px"><b>${a.name}</b> · ${a.phone}<br>Placa ${a.plate} · ${fmtDate(a.date)} a las ${a.time}</p>
      ${a.status==='Inasistente'?'<div class="alertbar dan" style="margin-bottom:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><div><b>Cita inasistida</b><p>Puedes reprogramarla con una nueva fecha y hora sin perder los datos del cliente.</p></div></div>':''}
      <div class="fgrid">
-       <div><label class="flabel">Estado</label><select id="stSel" class="finput">${['Pendiente','Confirmada','Completada','Inasistente','Cancelada'].map(x=>`<option ${x===a.status?'selected':''}>${x}</option>`).join('')}</select></div>
+       <div><label class="flabel">Estado</label><select id="stSel" class="finput">${['Pendiente','Confirmada','Insistido','Completada','Inasistente','Cancelada'].map(x=>`<option ${x===a.status?'selected':''}>${x}</option>`).join('')}</select></div>
        <div><label class="flabel">Asesor asignado</label><select id="stAdv" class="finput"><option value="">Sin asignar</option>${ADVISORS.map(x=>`<option value="${x.id}" ${x.id===a.advisorId?'selected':''}>${x.name}</option>`).join('')}</select></div>
        <div><label class="flabel">Fecha</label><input type="date" id="stDate" class="finput" value="${a.date}"></div>
        <div><label class="flabel">Hora</label><select id="stTime" class="finput">${DB.config.slots.map(x=>`<option ${x===a.time?'selected':''}>${x}</option>`).join('')}</select></div>
@@ -3156,8 +3159,8 @@ function nuevaPreventiva(d,t){
     `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="pvSave">Agendar preventiva</button>`);
   // Autocompletar si el código existe
   $('#pvCode').addEventListener('input',e=>{
-    const code=e.target.value.trim().toUpperCase();
-    const m=DB.reminders.find(x=>x.giftCode===code);
+    const code=e.target.value;
+    const m=buscarBono(code);
     if(m){ $('#pvName').value=m.name; $('#pvPhone').value=m.phone; $('#pvPlate').value=m.plate;
       setFieldState(e.target,true); toast('🎁 Bono encontrado · datos cargados'); }
     else if(code.length>=8) setFieldState(e.target,false,'No encontramos ese bono.');
@@ -3175,7 +3178,7 @@ function nuevaPreventiva(d,t){
       type:det?det.sub:'automovil',date:d,time:t,status:'Confirmada',source:'Preventiva',
       tipoServicio:'preventiva', code:genCode('CIT'),
       advisorId:$('#pvAdv').value||null,confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:false});
-    const bono=DB.reminders.find(x=>x.giftCode===$('#pvCode').value.trim().toUpperCase());
+    const bono=buscarBono($('#pvCode').value);
     if(bono){ bono.converted=true; }
     logAct(`Preventiva agendada · ${pl} · ${fmtDate(d)} ${t}`);
     trackAction('agendar-preventiva');
@@ -3774,20 +3777,23 @@ function drawCitas(){
     .sort((a,b)=>a.date<b.date?1:-1);
   $('#tbCitas').innerHTML = rows.length?rows.map(a=>`<tr>
     <td><b>${fmtDate(a.date)}</b></td><td class="num">${a.time}</td>
-    <td><b>${a.name}</b><small>${a.phone}</small></td>
+    <td><button class="lnkcli" data-cliv="${a.clientId}" title="Ver ficha del cliente"><b>${a.name}</b><small>${a.phone}</small></button></td>
     <td><span class="plate">${a.plate}</span></td>
     <td>${a.type==='moto'?'Moto':'Carro'}</td><td><small style="margin:0">${a.source}</small></td>
     <td>${apStatus(a.status)}</td>
     <td class="tact">
+      <button class="iconbtn" data-cliv="${a.clientId}" title="Ver ficha del cliente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1"/></svg></button>
+      <a class="iconbtn" href="https://wa.me/57${a.phone}?text=${encodeURIComponent(`Hola ${a.name.split(' ')[0]}, le recordamos su cita en CDA Revitolima el ${fmtDate(a.date)} a las ${a.time}, placa ${a.plate}. ¡Le esperamos! 🚗`)}" target="_blank" rel="noopener" title="Enviar recordatorio por WhatsApp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></a>
       <button class="iconbtn" data-apst="${a.id}" title="Cambiar estado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></button>
       <a class="iconbtn" href="https://wa.me/57${a.phone}?text=${encodeURIComponent(`Hola ${a.name.split(' ')[0]}, te confirmamos tu cita en CDA Revitolima para el ${fmtDate(a.date)} a las ${a.time}, placa ${a.plate}.`)}" target="_blank" rel="noopener" title="WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/></svg></a>
     </td></tr>`).join('')
     :`<tr><td colspan="8">${emptyBox('Sin citas','No hay citas que coincidan con el filtro.')}</td></tr>`;
+  $$('#tbCitas [data-cliv]').forEach(b=>b.addEventListener('click',()=>openCli(b.dataset.cliv)));
   $$('[data-apst]').forEach(b=>b.addEventListener('click',()=>{
     const a=DB.appts.find(x=>x.id===b.dataset.apst);
     modal('Cambiar estado de la cita',
       `<p style="font-size:.88rem;color:var(--ink-2);margin-bottom:14px">${a.name} · placa ${a.plate} · ${fmtDate(a.date)} ${a.time}</p>
-       <label class="flabel">Estado</label><select id="stSel" class="finput">${['Pendiente','Confirmada','Completada','Cancelada'].map(s=>`<option ${s===a.status?'selected':''}>${s}</option>`).join('')}</select>`,
+       <label class="flabel">Estado</label><select id="stSel" class="finput">${['Pendiente','Confirmada','Insistido','Completada','Cancelada'].map(s=>`<option ${s===a.status?'selected':''}>${s}</option>`).join('')}</select>`,
       `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="stSave">Guardar</button>`);
     $('#stSave').addEventListener('click',()=>{
       a.status=$('#stSel').value;
