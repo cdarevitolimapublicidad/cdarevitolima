@@ -1615,35 +1615,26 @@ function pintarRoster(){
 }
 async function pedirCodigoPerfil(usuario){
   $('#adErr').classList.remove('on');
-  const cont=$('#adRoster'); if(cont) cont.style.pointerEvents='none';
   try{
-    const r=await sbAdminRequestCode(usuario);
-    adPending=r.pending; adPendingUser=r.pending;
+    const r=await sbAdminRequestCode(usuario);   // solo valida el usuario (instantáneo)
+    adPendingUser=r.usuario;
     $('#adStep0').style.display='none';
     $('#adStep2').style.display='';
-    $('#adCodeMail').textContent=r.hint;
-    // Si el correo no salió (FormSubmit caído, dominio sin activar, etc.), mostramos el código
-    // en pantalla para no dejar a nadie afuera. Si sí salió, se oculta y solo llega por correo.
-    const avi=$('#adCodeInline');
-    if(avi && r.fallbackCode){
-      avi.innerHTML='Enviado al correo. Si no llega, tu código es <b style="font-size:1.25rem;letter-spacing:3px">'+r.fallbackCode+'</b>';
-      avi.style.display='';
-    }
-    const b=$('#admForm button[type=submit]'); b.style.display=''; b.textContent='Verificar código'; b.disabled=false;
-    $('#adCode').focus();
+    const who=$('#adWho'); if(who){ const p=(typeof ADMIN_ROSTER!=='undefined')&&ADMIN_ROSTER.find(x=>x.usuario===r.usuario); who.textContent=p?p.nombre:r.usuario; }
+    const inp=$('#adCode'); if(inp){ inp.value=''; inp.focus(); }
+    const b=$('#admForm button[type=submit]'); b.style.display=''; b.textContent='Ingresar'; b.disabled=false;
   }catch(err){
     const m=String(err&&err.message||err);
-    adErr(m==='CODIGO_NO_ENVIADO'?'No pudimos enviar el código. Revisa el correo del CDA e intenta de nuevo.'
-      :m==='SIN_ACCESO'?'Ese perfil no está activo.'
-      :'No pudimos procesar el acceso. Intenta de nuevo.', err&&err.detail);
-  }finally{ if(cont) cont.style.pointerEvents=''; }
+    adErr(m==='SIN_ACCESO'?'Ese perfil no está activo.':'No se pudo continuar. Intenta de nuevo.', err&&err.detail);
+  }
 }
+
 // Enlazar tarjetas al cargar y el botón de usuario/contraseña
 if(window.CDA_ENTRY==='admin'){
-  const esCode = (typeof ADMIN_LOGIN_MODE!=='undefined' && ADMIN_LOGIN_MODE==='code');
+  // Tarjetas de perfil para code y password (tocar perfil → pedir código o contraseña).
+  const conTarjetas = (typeof ADMIN_LOGIN_MODE==='undefined') || ADMIN_LOGIN_MODE==='code' || ADMIN_LOGIN_MODE==='password';
   const _b=$('#admForm button[type=submit]');
-  if(esCode){
-    // Modo código: arranca con las tarjetas de perfil, sin botón.
+  if(conTarjetas){
     pintarRoster();
     if(_b) _b.style.display='none';
     const ou=$('#adOtherUser'); if(ou) ou.addEventListener('click',()=>{
@@ -1681,8 +1672,8 @@ $('#admForm').addEventListener('submit',async e=>{
   }
   btn.disabled=true; btn.textContent='Verificando…';
   try{
-    if(adPending){
-      const r=await sbAdminVerify(adPending,$('#adCode').value,adPendingUser);
+    if(adPendingUser){
+      const r=await sbAdminLoginUser(adPendingUser,$('#adCode').value);
       btn.textContent='Cargando datos…';
       await startAdminSession(r.profile); resetAdminForm();
     }else{
@@ -1705,7 +1696,7 @@ $('#admForm').addEventListener('submit',async e=>{
       :m==='CARGA_FALLIDA'?'No pudimos cargar los datos. Intenta de nuevo.'
       :'No pudimos iniciar sesión. Intenta de nuevo.', err&&err.detail);
   }finally{
-    btn.disabled=false; btn.textContent = adPending ? 'Verificar código' : 'Ingresar al portal';
+    btn.disabled=false; btn.textContent = adPendingUser ? 'Ingresar' : 'Ingresar al portal';
   }
 });
 async function adminLogout(motivo){

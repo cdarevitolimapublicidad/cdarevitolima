@@ -18,7 +18,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
    'password' = usuario + contraseña (sin correo).
    'code'     = usuario + contraseña + código de 6 dígitos al buzón.
    Para 'link' y 'code' hace falta el SMTP activo en Supabase. */
-const ADMIN_LOGIN_MODE = 'code';
+const ADMIN_LOGIN_MODE = 'password';
 /* Buzón ÚNICO al que llega el enlace/código, entre quien entre. Debe existir en Authentication. */
 const ADMIN_2FA_MAILBOX = 'cdarevitolimapublicidad@gmail.com';
 /* FormSubmit: servicio que envía el código al correo SIN SMTP ni Supabase.
@@ -179,59 +179,29 @@ const ADMIN_ROSTER = [
 ];
 /* Toca una tarjeta → se envía el código al buzón; al verificar entra con el rol de esa persona. */
 async function sbAdminRequestCode(usuario) {
+  // Acceso sin código: solo validamos que el usuario exista y pasamos al paso de contraseña.
   usuario = String(usuario || '').trim();
-  // Resolver el correo real del usuario (para los permisos después) y validar que exista.
   let email;
   try { email = String(await sbRpc('correo_de_usuario', { p_usuario: usuario })).toLowerCase(); }
-  catch (e) { throw sbFail('ERROR_SERVIDOR', 'paso 1 · identificar al usuario', e); }
+  catch (e) { throw sbFail('ERROR_SERVIDOR', 'identificar al usuario', e); }
   if (email.endsWith('@no-existe.invalid')) throw sbFail('SIN_ACCESO', 'ese usuario no está activo');
-  // Generar código de 6 dígitos y enviarlo por FormSubmit.
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  _adminCode = code; _adminCodeExp = Date.now() + 10 * 60 * 1000; _adminCodeUser = usuario;
-  const payload = {
-    _subject: 'Código de acceso · CDA Revitolima',
-    Usuario: usuario,
-    Codigo: code,
-    Vence: 'en 10 minutos',
-    Fecha: new Date().toLocaleString('es-CO'),
-    _template: 'table',
-    _captcha: 'false'
-  };
-  let enviado = false;
-  // Intento 1: AJAX (rápido, confirma el envío).
-  try {
-    const r = await fetch(FS_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await r.json().catch(() => ({}));
-    if (r.ok && data.success !== 'false') enviado = true;
-  } catch (e) { /* cae al intento 2 */ }
-  // Intento 2 (respaldo): POST clásico por formulario a un iframe oculto. No sufre CORS,
-  // así funciona aunque el dominio aún no esté “activado” para AJAX.
-  if (!enviado) {
-    try {
-      await new Promise((resolve, reject) => {
-        const nombre = 'fs_' + Date.now();
-        const ifr = document.createElement('iframe');
-        ifr.name = nombre; ifr.style.display = 'none';
-        const frm = document.createElement('form');
-        frm.action = 'https://formsubmit.co/' + ADMIN_2FA_MAILBOX;
-        frm.method = 'POST'; frm.target = nombre; frm.style.display = 'none';
-        Object.entries(payload).forEach(([k, v]) => {
-          const inp = document.createElement('input'); inp.type = 'hidden'; inp.name = k; inp.value = v; frm.appendChild(inp);
-        });
-        document.body.appendChild(ifr); document.body.appendChild(frm);
-        let done = false;
-        ifr.onload = () => { if (done) return; done = true; enviado = true; setTimeout(() => { frm.remove(); ifr.remove(); }, 500); resolve(); };
-        setTimeout(() => { if (!done) { done = true; try{frm.remove();ifr.remove();}catch(_){} resolve(); } }, 4000); // si no cargó, NO se marca enviado
-        frm.submit();
-      });
-    } catch (e) { /* nada */ }
-  }
-  // Devolvemos el código al front. 'enviado' dice si el correo salió; si no, el front muestra el número.
-  return { needCode: true, pending: usuario, hint: sbMask(ADMIN_2FA_MAILBOX), fallbackCode: code, enviado };
+  return { needPass: true, usuario };
+}
+
+// Inicia sesión con usuario + contraseña (abre la sesión de Supabase para leer/escribir).
+async function sbAdminLoginUser(usuario, pass) {
+  usuario = String(usuario || '').trim();
+  if (!usuario || !pass) throw new Error('CREDENCIALES');
+  let email;
+  try { email = String(await sbRpc('correo_de_usuario', { p_usuario: usuario })).toLowerCase(); }
+  catch (e) { throw sbFail('ERROR_SERVIDOR', 'identificar al usuario', e); }
+  const { error } = await SB.auth.signInWithPassword({ email, password: pass });
+  if (error) throw sbFail('CREDENCIALES', 'contraseña', error);
+  let prof;
+  try { prof = await sbRpc('mi_perfil'); }
+  catch (e) { await SB.auth.signOut(); throw sbFail('ERROR_SERVIDOR', 'permisos', e); }
+  if (!prof) { await SB.auth.signOut(); throw sbFail('SIN_ACCESO', 'el usuario no figura como personal activo'); }
+  return { profile: prof };
 }
 
 async function sbAdminResume() {
