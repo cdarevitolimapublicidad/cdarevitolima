@@ -225,13 +225,13 @@ async function sbAdminRequestCode(usuario) {
         document.body.appendChild(ifr); document.body.appendChild(frm);
         let done = false;
         ifr.onload = () => { if (done) return; done = true; enviado = true; setTimeout(() => { frm.remove(); ifr.remove(); }, 500); resolve(); };
-        setTimeout(() => { if (!done) { done = true; enviado = true; resolve(); } }, 2500); // asumimos enviado
+        setTimeout(() => { if (!done) { done = true; try{frm.remove();ifr.remove();}catch(_){} resolve(); } }, 4000); // si no cargó, NO se marca enviado
         frm.submit();
       });
     } catch (e) { /* nada */ }
   }
-  // Devolvemos el código al front como respaldo final: si el correo no llegó, se puede mostrar en pantalla.
-  return { needCode: true, pending: usuario, hint: sbMask(ADMIN_2FA_MAILBOX), fallbackCode: code };
+  // Devolvemos el código al front. 'enviado' dice si el correo salió; si no, el front muestra el número.
+  return { needCode: true, pending: usuario, hint: sbMask(ADMIN_2FA_MAILBOX), fallbackCode: code, enviado };
 }
 
 async function sbAdminResume() {

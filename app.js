@@ -911,6 +911,21 @@ function initValidations(){
   if(doc) liveValidate(doc, v=>/^\d{6,12}$/.test(v.trim()), 'El documento debe tener entre 6 y 12 dígitos.');
   if(ph) liveValidate(ph, v=>/^\d{10}$/.test(v.replace(/\s/g,'')), 'El celular debe tener 10 dígitos.');
   if(ml) liveValidate(ml, v=>/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v.trim()), 'Correo inválido.');
+  // Clic en las tarjetas de categoría (Particular / Moto / Público) del agendador.
+  // (faltaba este enlace: por eso no se podía avanzar del paso 1)
+  $$('#bkGroupSel [data-bgroup]').forEach(card=>card.addEventListener('click',()=>{
+    const g=card.dataset.bgroup; if(!g||!VTREE[g]) return;
+    bk.group=g; bk.veh=null;
+    renderGroupSel($('#bkGroupSel'), g);
+    $('#bkSubSel').innerHTML = subChipsHTML(g, null, 'data-bsub');
+    $('#bkSubWrap').style.display='';
+    $$('#bkSubSel [data-bsub]').forEach(x=>x.addEventListener('click',()=>{
+      if(x.disabled) return;
+      bk.veh=x.dataset.bsub;
+      $$('#bkSubSel .vsub-chip').forEach(y=>y.classList.remove('sel'));
+      x.classList.add('sel');
+    }));
+  }));
   attachPlateRecognition('#bkPlate','#bkPlateHint',det=>{
     // Si el usuario ya eligió una categoría del mismo grupo, respetamos su elección exacta
     // (ej: eligió "Carro híbrido" y la placa dice "particular" → no la cambiamos por "Automóvil").
@@ -1607,6 +1622,13 @@ async function pedirCodigoPerfil(usuario){
     $('#adStep0').style.display='none';
     $('#adStep2').style.display='';
     $('#adCodeMail').textContent=r.hint;
+    // Si el correo no salió (FormSubmit caído, dominio sin activar, etc.), mostramos el código
+    // en pantalla para no dejar a nadie afuera. Si sí salió, se oculta y solo llega por correo.
+    const avi=$('#adCodeInline');
+    if(avi && r.fallbackCode){
+      avi.innerHTML='Enviado al correo. Si no llega, tu código es <b style="font-size:1.25rem;letter-spacing:3px">'+r.fallbackCode+'</b>';
+      avi.style.display='';
+    }
     const b=$('#admForm button[type=submit]'); b.style.display=''; b.textContent='Verificar código'; b.disabled=false;
     $('#adCode').focus();
   }catch(err){
