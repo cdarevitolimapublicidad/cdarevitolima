@@ -1613,20 +1613,16 @@ function pintarRoster(){
     </button>`).join('');
   $$('#adRoster .ad-person').forEach(b=>b.addEventListener('click',()=>pedirCodigoPerfil(b.dataset.usuario)));
 }
-async function pedirCodigoPerfil(usuario){
+function pedirCodigoPerfil(usuario){
+  // INSTANTÁNEO: la tarjeta ya nos dice quién es; mostramos la contraseña de una.
+  // La validación real ocurre al enviar la contraseña (ahí sí consulta al servidor).
   $('#adErr').classList.remove('on');
-  try{
-    const r=await sbAdminRequestCode(usuario);   // solo valida el usuario (instantáneo)
-    adPendingUser=r.usuario;
-    $('#adStep0').style.display='none';
-    $('#adStep2').style.display='';
-    const who=$('#adWho'); if(who){ const p=(typeof ADMIN_ROSTER!=='undefined')&&ADMIN_ROSTER.find(x=>x.usuario===r.usuario); who.textContent=p?p.nombre:r.usuario; }
-    const inp=$('#adCode'); if(inp){ inp.value=''; inp.focus(); }
-    const b=$('#admForm button[type=submit]'); b.style.display=''; b.textContent='Ingresar'; b.disabled=false;
-  }catch(err){
-    const m=String(err&&err.message||err);
-    adErr(m==='SIN_ACCESO'?'Ese perfil no está activo.':'No se pudo continuar. Intenta de nuevo.', err&&err.detail);
-  }
+  adPendingUser=usuario;
+  $('#adStep0').style.display='none';
+  $('#adStep2').style.display='';
+  const who=$('#adWho'); if(who){ const p=(typeof ADMIN_ROSTER!=='undefined')&&ADMIN_ROSTER.find(x=>x.usuario===usuario); who.textContent=p?p.nombre:usuario; }
+  const inp=$('#adCode'); if(inp){ inp.value=''; inp.focus(); }
+  const b=$('#admForm button[type=submit]'); b.style.display=''; b.textContent='Ingresar'; b.disabled=false;
 }
 
 // Enlazar tarjetas al cargar y el botón de usuario/contraseña
