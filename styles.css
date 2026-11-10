@@ -1617,3 +1617,29 @@ td small{display:block;color:var(--ink-3);font-size:.76rem;margin-top:1px}
 .lnkcli b{display:block;line-height:1.2;border-bottom:1px dotted transparent}
 .lnkcli:hover b{color:var(--green-700);border-bottom-color:var(--green-700)}
 .lnkcli small{color:var(--ink-3)}
+
+
+/* ═══ FRANJA DE HORARIOS (inicio) ═══ */
+.hours-band{padding:0 0 10px;margin-top:-28px;position:relative;z-index:3}
+.hours-card{background:linear-gradient(135deg,var(--green-900),var(--green-800));border-radius:var(--r-xl,20px);
+  padding:22px 26px;color:#fff;box-shadow:0 18px 44px rgba(15,51,25,.26);border:1px solid rgba(201,240,74,.22);
+  display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+.hours-head{display:flex;align-items:center;gap:13px;flex:0 0 auto;padding-right:24px;border-right:1px solid rgba(255,255,255,.15)}
+.hours-head svg{width:38px;height:38px;color:var(--lime,#C9F04A);flex-shrink:0}
+.hours-head b{display:block;font-size:1.08rem;font-weight:800;line-height:1.15}
+.hours-head span{display:block;font-size:.8rem;color:rgba(255,255,255,.72);margin-top:2px}
+.hours-grid{display:flex;gap:30px;flex:1;flex-wrap:wrap}
+.hrow{display:flex;flex-direction:column;gap:2px}
+.hrow .hday{font-size:.82rem;color:rgba(255,255,255,.72);font-weight:600}
+.hrow .htime{font-size:1.02rem;font-weight:800;letter-spacing:.2px}
+.hrow.is-open .hday{color:var(--lime,#C9F04A)}
+.hrow.is-open .htime::after{content:" · Abierto ahora";font-size:.7rem;font-weight:700;color:var(--green-900);
+  background:var(--lime,#C9F04A);padding:2px 8px;border-radius:100px;margin-left:8px;vertical-align:middle;letter-spacing:0}
+@media(max-width:720px){
+  .hours-band{margin-top:-14px}
+  .hours-card{flex-direction:column;align-items:stretch;gap:16px;padding:18px 18px}
+  .hours-head{border-right:none;border-bottom:1px solid rgba(255,255,255,.15);padding-right:0;padding-bottom:14px}
+  .hours-grid{gap:14px;flex-direction:column}
+  .hrow{flex-direction:row;justify-content:space-between;align-items:center}
+  .hrow .htime::after{display:block;width:fit-content;margin:4px 0 0}
+}

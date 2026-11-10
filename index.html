@@ -134,6 +134,26 @@
     </div>
   </section>
 
+  <!-- FRANJA DE HORARIOS -->
+  <section class="hours-band">
+    <div class="wrap">
+      <div class="hours-card">
+        <div class="hours-head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div>
+            <b>Horarios de atención</b>
+            <span>Jornada continua · sin cerrar al mediodía</span>
+          </div>
+        </div>
+        <div class="hours-grid">
+          <div class="hrow is-open" id="hrowLV"><span class="hday">Lunes a Viernes</span><span class="htime">6:00 a.m. – 7:00 p.m.</span></div>
+          <div class="hrow" id="hrowSab"><span class="hday">Sábados</span><span class="htime">7:00 a.m. – 6:00 p.m.</span></div>
+          <div class="hrow" id="hrowDom"><span class="hday">Domingos y festivos</span><span class="htime">8:00 a.m. – 2:00 p.m.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- BANDA CON FOTO DEL CENTRO -->
   <section style="padding:26px 0 34px">
     <div class="wrap">
@@ -1062,5 +1082,22 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="supabase-sync.js"></script>
 <script src="app.js"></script>
+<script>
+/* Resaltar el horario de hoy en la franja de inicio */
+(function(){
+  function marcarHorario(){
+    const rows={0:'hrowDom',1:'hrowLV',2:'hrowLV',3:'hrowLV',4:'hrowLV',5:'hrowLV',6:'hrowSab'};
+    const now=new Date(); const dia=now.getDay(); const h=now.getHours()+now.getMinutes()/60;
+    let abierto=false;
+    if(dia>=1&&dia<=5) abierto = h>=6 && h<19;
+    else if(dia===6) abierto = h>=7 && h<18;
+    else abierto = h>=8 && h<14;
+    document.querySelectorAll('.hrow').forEach(r=>r.classList.remove('is-open'));
+    const id=rows[dia]; const el=document.getElementById(id);
+    if(el && abierto) el.classList.add('is-open');
+  }
+  if(document.readyState!=='loading') marcarHorario(); else document.addEventListener('DOMContentLoaded',marcarHorario);
+})();
+</script>
 </body>
 </html>
