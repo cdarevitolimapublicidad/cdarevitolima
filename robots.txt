@@ -1,0 +1,10 @@
+# robots.txt · CDA Revitolima
+User-agent: *
+Allow: /
+# Zonas privadas: no indexar los portales internos
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /cliente
+Disallow: /cliente.html
+
+Sitemap: https://cdarevitolima.co/sitemap.xml
