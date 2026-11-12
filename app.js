@@ -143,12 +143,12 @@ const SERVICES = [
 
 /* ---------- USUARIOS Y ASESORES (multi-rol) ---------- */
 let ADVISORS = [
-  {id:'ad1', name:'Diego Ramírez', phone:'3001112233'},
-  {id:'ad2', name:'Carolina Muñoz', phone:'3002223344'}
+  {id:'ad1', name:'Jonathan', phone:'3001112233'},
+  {id:'ad2', name:'Hailer', phone:'3002223344'}
 ];
 // Sincroniza ADVISORS con los asesores guardados en la nube (DB.config.asesores)
 function syncAdvisors(){
-  const base=[{id:'ad1',name:'Diego Ramírez',phone:'3001112233'},{id:'ad2',name:'Carolina Muñoz',phone:'3002223344'}];
+  const base=[{id:'ad1',name:'Jonathan',phone:'3001112233'},{id:'ad2',name:'Hailer',phone:'3002223344'}];
   const extra=Array.isArray(DB.advisors)?DB.advisors:[];
   const map={}; [...base,...extra].forEach(a=>{ if(a&&a.id) map[a.id]=a; });
   ADVISORS = Object.values(map);

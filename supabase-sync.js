@@ -174,8 +174,8 @@ const ADMIN_ROSTER = [
   { usuario:'G3r3nc14',  nombre:'Gerencia',    detalle:'Ricardo Quiroga',   rol:'superusuario',       color:'#6D28D9', ini:'RQ' },
   { usuario:'D1r3cc10n', nombre:'Dirección',   detalle:'Dirección General', rol:'superadministrador', color:'#0F3319', ini:'DG' },
   { usuario:'C4j4',      nombre:'Caja',        detalle:'Paola Jiménez',     rol:'administrador',      color:'#1D6132', ini:'PJ' },
-  { usuario:'4s3s0r1',   nombre:'Asesor 1',    detalle:'Diego Ramírez',     rol:'asesor',             color:'#B7862C', ini:'DR' },
-  { usuario:'4s3s0r2',   nombre:'Asesor 2',    detalle:'Carolina Muñoz',    rol:'asesor',             color:'#B7862C', ini:'CM' }
+  { usuario:'4s3s0r1',   nombre:'Asesor 1',    detalle:'Jonathan',          rol:'asesor',             color:'#B7862C', ini:'JO' },
+  { usuario:'4s3s0r2',   nombre:'Asesor 2',    detalle:'Hailer',            rol:'asesor',             color:'#B7862C', ini:'HA' }
 ];
 /* Toca una tarjeta → se envía el código al buzón; al verificar entra con el rol de esa persona. */
 async function sbAdminRequestCode(usuario) {
