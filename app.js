@@ -40,6 +40,70 @@ const COP = n => n==null ? '—' : '$'+Number(n).toLocaleString('es-CO');
 const today = new Date();
 const iso = d => d.toISOString().slice(0,10);
 const addDays = (d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
+
+/* ═══════ HORARIOS POR DÍA ═══════
+   L–V 6:00–19:00 · Sáb 7:00–18:00 · Dom y festivos 8:00–14:00 · turnos de 40 min.
+   Los festivos de Colombia se calculan solos (Ley Emiliani + Semana Santa). */
+const HORARIO_BASE = {lv:{ini:'06:00',fin:'19:00'}, sab:{ini:'07:00',fin:'18:00'}, dom:{ini:'08:00',fin:'14:00'}, paso:40};
+function horarioCfg(){ const h=DB.config&&DB.config.horarioSemana; return (h&&h.lv&&h.sab&&h.dom)?h:HORARIO_BASE; }
+function _pascua(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+  h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+  mes=Math.floor((h+l-7*m+114)/31),dia=((h+l-7*m+114)%31)+1; return new Date(y,mes-1,dia,12);}
+function _aLunes(d){ const w=d.getDay(); return w===1?d:addDays(d,(8-w)%7); }
+function festivosCO(y){
+  const f=new Set(), P=_pascua(y), put=d=>f.add(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+  [[0,1],[4,1],[6,20],[7,7],[11,8],[11,25]].forEach(([m,d])=>put(new Date(y,m,d,12)));            // fijos
+  [[0,6],[2,19],[5,29],[7,15],[9,12],[10,1],[10,11]].forEach(([m,d])=>put(_aLunes(new Date(y,m,d,12)))); // pasan al lunes
+  put(addDays(P,-3)); put(addDays(P,-2));                                                          // Jueves y Viernes Santo
+  put(_aLunes(addDays(P,39))); put(_aLunes(addDays(P,60))); put(_aLunes(addDays(P,68)));          // Ascensión, Corpus, Sagrado Corazón
+  return f;
+}
+const _festCache={};
+function esFestivo(ds){ const y=+String(ds).slice(0,4); if(!_festCache[y]) _festCache[y]=festivosCO(y); return _festCache[y].has(ds); }
+function tipoDia(ds){ const w=new Date(ds+'T12:00:00').getDay(); if(w===0||esFestivo(ds)) return 'dom'; return w===6?'sab':'lv'; }
+function _toMin(h){ const [a,b]=h.split(':').map(Number); return a*60+b; }
+function _fmtMin(m){ return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function genSlots(ini,fin,paso){ const out=[]; for(let m=_toMin(ini);m+paso<=_toMin(fin);m+=paso) out.push(_fmtMin(m)); return out; }
+function slotsFor(ds){ if(!ds) return []; const h=horarioCfg(), t=h[tipoDia(ds)]; return genSlots(t.ini,t.fin,h.paso||40); }
+function unionSlots(days){ const s=new Set(); days.forEach(d=>slotsFor(iso(d)).forEach(x=>s.add(x))); return [...s].sort(); }
+function horaPasada(ds,t){ const h=iso(today); if(ds<h) return true; if(ds>h) return false; const n=new Date(); return t<=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); }
+function horasDelDia(ds,citas){ const s=new Set(slotsFor(ds)); citas.forEach(a=>{ if(a.date===ds) s.add(a.time); }); return [...s].sort(); }
+function slotOpts(ds,cur){ const l=slotsFor(ds); if(cur&&!l.includes(cur)) l.unshift(cur); return l.map(x=>`<option ${x===cur?'selected':''}>${x}</option>`).join(''); }
+function _h12(h){ const [H,M]=h.split(':').map(Number); const ap=H>=12?'p.m.':'a.m.'; const h12=H%12||12; return h12+':'+String(M).padStart(2,'0')+' '+ap; }
+function horarioTexto(tipo){ const t=horarioCfg()[tipo]; return _h12(t.ini)+' – '+_h12(t.fin); }
+function applyHorarios(){  // refleja los horarios en la franja del inicio
+  [['hrowLV','lv'],['hrowSab','sab'],['hrowDom','dom']].forEach(([id,t])=>{
+    const el=document.querySelector('#'+id+' .htime'); if(el) el.textContent=horarioTexto(t); });
+}
+
+/* ═══════ ASESOR: identidad, marca y alcance de los datos ═══════ */
+function esAsesor(){ return !!(typeof currentUser!=='undefined' && currentUser && currentUser.role==='asesor'); }
+function miAsesorId(){ return esAsesor() ? (currentUser.advisorId||null) : null; }
+function advNombre(id){ const a=ADVISORS.find(x=>x.id===id); return a?a.name:''; }
+function advTag(id,pre){ const n=advNombre(id); return n?`<span class="adv-tag" title="Asesor: ${n}">👤 ${pre?pre+' ':''}${n}</span>`:''; }
+function cliPropio(c){ return !!c && esAsesor() && !!miAsesorId() && c.ownerAdvisorId===miAsesorId(); }
+// Seguimientos: el asesor solo ve los suyos; el resto del equipo ve los generales (sin dueño asesor).
+function fupVisibles(){ const me=miAsesorId(); return DB.followups.filter(f=> esAsesor()? (!!me && f.owner===me) : !f.owner ); }
+function clienteVisibleEnAlertas(c){ const own=(c&&c.ownerAdvisorId)||null; return esAsesor()? (!!own && own===miAsesorId()) : !own; }
+function advsAlcance(){ return esAsesor()?ADVISORS.filter(a=>a.id===miAsesorId()):ADVISORS; }
+function vehAmbito(){ return esAsesor()? DB.vehicles.filter(v=>cliPropio(cliOf(v.clientId))) : DB.vehicles; }
+// Ejecuta una función con los datos limitados a lo del asesor (informes, arqueos y exportaciones).
+function conAlcance(fn){
+  if(!esAsesor()) return fn();
+  const me=miAsesorId(); const orig={appts:DB.appts,clients:DB.clients,vehicles:DB.vehicles,reminders:DB.reminders,
+    revisions:DB.revisions,followups:DB.followups,convenios:DB.convenios||[]};
+  try{
+    const ap=orig.appts.filter(a=>a.advisorId===me||a.creadaPor===me);
+    const cids=new Set(ap.map(a=>a.clientId)); orig.clients.forEach(c=>{ if(c.ownerAdvisorId===me) cids.add(c.id); });
+    const vs=orig.vehicles.filter(v=>cids.has(v.clientId)); const plates=new Set(vs.map(v=>v.plate));
+    DB.appts=ap; DB.clients=orig.clients.filter(c=>cids.has(c.id)); DB.vehicles=vs;
+    DB.reminders=orig.reminders.filter(r=>r.advisorId===me||plates.has(r.plate));
+    DB.revisions=orig.revisions.filter(r=>r.advisorId===me);
+    DB.followups=orig.followups.filter(f=>f.owner===me);
+    DB.convenios=orig.convenios.filter(c=>c.advisorId===me);
+    return fn();
+  } finally { Object.assign(DB,orig); }
+}
 const fmtDate = s => { if(!s) return '—'; const [y,m,d]=s.split('-'); 
   const M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   return `${+d} ${M[+m-1]} ${y}`; };
@@ -144,11 +208,12 @@ const SERVICES = [
 /* ---------- USUARIOS Y ASESORES (multi-rol) ---------- */
 let ADVISORS = [
   {id:'ad1', name:'Jonathan', phone:'3001112233'},
-  {id:'ad2', name:'Hailer', phone:'3002223344'}
+  {id:'ad2', name:'Hailer', phone:'3002223344'},
+  {id:'ad3', name:'Laura', phone:''}
 ];
 // Sincroniza ADVISORS con los asesores guardados en la nube (DB.config.asesores)
 function syncAdvisors(){
-  const base=[{id:'ad1',name:'Jonathan',phone:'3001112233'},{id:'ad2',name:'Hailer',phone:'3002223344'}];
+  const base=[{id:'ad1',name:'Jonathan',phone:'3001112233'},{id:'ad2',name:'Hailer',phone:'3002223344'},{id:'ad3',name:'Laura',phone:''}];
   const extra=Array.isArray(DB.advisors)?DB.advisors:[];
   const map={}; [...base,...extra].forEach(a=>{ if(a&&a.id) map[a.id]=a; });
   ADVISORS = Object.values(map);
@@ -179,28 +244,28 @@ const ROLES = {
     desc:'Gerencia · seguimiento, control y revisión',
     color:'#6D28D9',
     home:'gerencia',
-    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','cartera','fin','finanzas','export','config']
+    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','convenios','cartera','fin','finanzas','export','config']
   },
   superadministrador:{
     label:'Superadministrador',
     desc:'Gerencia · control total y gestión de usuarios',
     color:'#0F3319',
     home:'gerencia',
-    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','cartera','fin','finanzas','caja','export','usuarios','config']
+    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','convenios','cartera','fin','finanzas','caja','export','usuarios','config']
   },
   administrador:{
     label:'Usuario administrador',
     desc:'Caja y digitación · alimenta el sistema',
     color:'#1D6132',
     home:'caja',
-    nav:['caja','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','informes']
+    nav:['caja','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','convenios','informes']
   },
   asesor:{
     label:'Usuario asesor',
     desc:'Agenda, prospectos y comisiones',
     color:'#B7862C',
     home:'miagenda',
-    nav:['miagenda','agenda','preventivas','clientes','vehiculos','venc','alertas','pipeline','informes']
+    nav:['miagenda','agenda','preventivas','clientes','vehiculos','venc','alertas','pipeline','convenios','informes']
   }
 };
 const ROLE_LABEL = Object.fromEntries(Object.entries(ROLES).map(([k,v])=>[k,v.label]));
@@ -268,6 +333,8 @@ const DB = {
   followups:[],
   // Asesores creados desde el sistema (los nuevos que se van registrando).
   advisors:[],
+  // Convenios con empresas: código CDA-0000 que se entrega a los clientes de la empresa.
+  convenios:[],
   // Cuentas bancarias para registro de ingresos (Finanzas)
   bankAccounts:[
     {id:'b1', name:'Bancolombia · Cuenta corriente', balance:0},
@@ -718,8 +785,10 @@ function renderSlots(){
   const box=$('#bkSlots');
   if(!bk.date){ box.innerHTML='<p style="font-size:.85rem;color:var(--ink-3);grid-column:1/-1">Selecciona primero una fecha.</p>'; return; }
   const taken=takenSlots(bk.date);
-  box.innerHTML = DB.config.slots.map(s=>
-    `<button class="slot${taken.includes(s)?'':''}" data-slot="${s}" ${taken.includes(s)?'disabled':''}>${s}</button>`).join('');
+  const _td=tipoDia(bk.date), _lbl={lv:'Lunes a viernes',sab:'Sábado',dom:esFestivo(bk.date)?'Festivo':'Domingo'}[_td];
+  box.innerHTML = `<p style="font-size:.8rem;color:var(--ink-3);grid-column:1/-1;margin:0 0 4px">${_lbl} · atendemos de ${horarioTexto(_td)}</p>`+
+    slotsFor(bk.date).map(s=>
+    `<button class="slot${taken.includes(s)?'':''}" data-slot="${s}" ${(taken.includes(s)||horaPasada(bk.date,s))?'disabled':''}>${s}</button>`).join('');
   $$('[data-slot]',box).forEach(b=>b.addEventListener('click',()=>{
     $$('[data-slot]',box).forEach(x=>x.classList.remove('sel'));
     b.classList.add('sel'); bk.time=b.dataset.slot;
@@ -746,6 +815,7 @@ $('#bkNext').addEventListener('click',async ()=>{
     ok = vErr($('#bkPlate'), !/^[A-Za-z]{3}\d{2,3}[A-Za-z]?$/.test($('#bkPlate').value.trim())) && ok;
     ok = vErr($('#bkPhone'), !/^\d{10}$/.test($('#bkPhone').value.replace(/\s/g,''))) && ok;
     const t=$('#bkTerms').checked; $('#bkTermsErr').classList.toggle('on',!t); ok = t && ok;
+    const _cvt=(($('#bkConv')||{}).value||'').trim(); if(_cvt && bk.convOk===false){ toast('El código de convenio no es válido. Revísalo o déjalo vacío.'); return; }
     if(!ok) return;
     $('#cfVeh').textContent = vLabel(bk.veh);
     $('#cfDate').textContent = fmtDate(bk.date);
@@ -765,6 +835,7 @@ $('#bkNext').addEventListener('click',async ()=>{
   const ap={id:uid('a'),clientId:cl.id,plate,name:cl.name,phone:cl.phone,email:cl.email,
     type:bk.veh,date:bk.date,time:bk.time,status:'Pendiente',source:'Web',code,
     advisorId:null,confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:false};
+  { const _cv=(($('#bkConv')||{}).value||'').trim(); if(_cv) ap.convenioCodigo=fmtConvenio(_cv); }
   if(!window.CDA_STAFF){
     const btn=$('#bkNext'); btn.disabled=true;
     try{ await sbReservar(clNew,vhNew,ap); }
@@ -787,6 +858,7 @@ $('#bkNext').addEventListener('click',async ()=>{
       <span class="code-hint">Preséntalo al llegar al centro</span></div>
     <div><span>Vehículo</span><span>${vLabel(bk.veh)}</span></div>
     <div><span>Placa</span><span>${plate}</span></div>
+    ${bk.convOk&&ap.convenioCodigo?`<div><span>Convenio</span><span>${bk.convEmpresa||ap.convenioCodigo}</span></div>`:''}
     <div><span>Fecha</span><span>${fmtDate(bk.date)}</span></div>
     <div><span>Hora</span><span>${bk.time}</span></div>
     <div><span>Estado</span><span>Pendiente de confirmación</span></div>
@@ -815,8 +887,24 @@ $('#bkReset').addEventListener('click',()=>{
   $('#bkSubWrap').style.display='none'; $('#bkSubSel').innerHTML='';
   ['#bkName','#bkDoc','#bkPlate','#bkPhone','#bkMail','#bkDate'].forEach(s=>$(s).value='');
   $('#bkTerms').checked=false; renderSlots();
+  if($('#bkConv')){ $('#bkConv').value=''; $('#bkConvHint').textContent='Si tu empresa tiene convenio con el CDA, escribe el código.'; bk.convOk=null; }
   $('#bkFlow').style.display=''; $('#bkDone').style.display='none';
   bkShow(1);
+});
+
+/* ---------- CÓDIGO DE CONVENIO (reserva pública) ---------- */
+let _convTimer=null;
+if($('#bkConv')) $('#bkConv').addEventListener('input',()=>{
+  clearTimeout(_convTimer); const i=$('#bkConv'), h=$('#bkConvHint'), t=i.value.trim(); bk.convOk=null;
+  if(!t){ h.style.color='var(--ink-3)'; h.textContent='Si tu empresa tiene convenio con el CDA, escribe el código.'; return; }
+  if(normConvenio(t).length<7){ h.style.color='var(--ink-3)'; h.textContent='Escribe el código completo: CDA-0000'; return; }
+  h.style.color='var(--ink-3)'; h.textContent='Verificando…';
+  _convTimer=setTimeout(async()=>{
+    try{ const r=await sbValidarConvenio(t);
+      if(r&&r.ok){ bk.convOk=true; bk.convEmpresa=r.empresa||''; h.style.color='var(--green-700)'; h.textContent='✓ Convenio con '+(r.empresa||'empresa aliada'); }
+      else { bk.convOk=false; h.style.color='var(--danger)'; h.textContent='Código no válido. Revísalo o déjalo vacío.'; }
+    }catch(e){ bk.convOk=null; h.style.color='var(--ink-3)'; h.textContent='No pudimos verificar el código ahora; igual lo revisaremos al registrar tu cita.'; }
+  },450);
 });
 
 /* ---------- RECORDATORIO ---------- */
@@ -1503,10 +1591,13 @@ function bindCliActions(){
       <p style="font-size:.88rem;color:var(--ink-2);margin-bottom:16px">Cita actual: <b>${fmtDate(ap.date)} · ${ap.time}</b> · placa ${ap.plate}</p>
       <label class="flabel">Nueva fecha</label><input type="date" id="rpDate" class="finput" min="${iso(today)}" value="${ap.date}">
       <label class="flabel" style="margin-top:14px">Nueva hora</label>
-      <select id="rpTime" class="finput">${DB.config.slots.map(s=>`<option ${s===ap.time?'selected':''}>${s}</option>`).join('')}</select>`,
+      <select id="rpTime" class="finput"></select>`,
       `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="rpSave">Guardar cambios</button>`);
+    const fillRp=()=>{ const d=$('#rpDate').value; $('#rpTime').innerHTML=slotsFor(d).map(s=>`<option ${(s===ap.time&&d===ap.date)?'selected':''}>${s}</option>`).join(''); };
+    fillRp(); $('#rpDate').addEventListener('change',fillRp);
     $('#rpSave').addEventListener('click',async()=>{
       const nd=$('#rpDate').value, nt=$('#rpTime').value;
+      if(!nt) return toast('Ese día no hay turnos. Elige otra fecha.');
       try{ await sbPortalCambio(window.__portalKey.doc,window.__portalKey.clave,'cita',ap.id,{date:nd,time:nt}); }
       catch(err){ toast(String(err&&err.message).includes('SLOT_OCUPADO')?'Ese horario ya está ocupado. Elige otro.':'No se pudo guardar el cambio. Intenta de nuevo.'); return; }
       ap.date=nd; ap.time=nt; ap.status='Pendiente';
@@ -1728,6 +1819,7 @@ const NAV_META = {
   clientes:{label:'Clientes', ico:'<circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1"/>', grupo:'Operación'},
   vehiculos:{label:'Vehículos', ico:'<path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2" y="13" width="20" height="6" rx="1.6"/>', grupo:'Operación'},
   venc:{label:'Vencimientos', ico:'<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>', grupo:'Operación', badge:'bgVenc'},
+  convenios:{label:'Convenios', ico:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M3 13h18"/>', grupo:'Operación'},
   alertas:{label:'Alertas', ico:'<path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5M12 17.5v.5"/>', grupo:'Seguimiento', badge:'bgAlertas'},
   pipeline:{label:'Seguimiento', ico:'<rect x="3" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/>', grupo:'Seguimiento', badge:'bgPipe'},
   cartera:{label:'Cartera', ico:'<path d="M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h11l5 4"/>', grupo:'Financiero'},
@@ -1784,6 +1876,7 @@ function refreshBadges(){
   const mora = DB.cartera.filter(k=>k.status==='Vencida').length;
   const set=(id,n)=>{const e=$(id); if(e){e.textContent=n; e.style.display=n?'':'none';}};
   set('#bgCitas',pend); set('#bgVenc',venc); set('#bgMora',mora);
+  try{ set('#bgAlertas',contarAlertas()); set('#bgPipe',fupVisibles().filter(f=>f.estado!=='noInteresado'&&f.estado!=='cerrado').length); }catch(e){}
 }
 
 // Función para crear un cliente con acceso al portal
@@ -1791,7 +1884,8 @@ function crearClientePortal(doc, name, phone, email, plate, type){
   if(!doc || !name || !plate) return toast('Completa documento, nombre y placa');
   let cl = DB.clients.find(c=>c.doc===doc);
   if(!cl){
-    cl = {id:uid('c'), doc, name, phone:phone||'', email:email||'', notes:'Creado desde admin.'};
+    cl = {id:uid('c'), doc, name, phone:phone||'', email:email||'', notes:'Creado desde admin.',creado:iso(today)};
+    if(esAsesor()){ cl.ownerAdvisorId=miAsesorId(); cl.creadoPor=miAsesorId(); }
     DB.clients.push(cl);
   }
   const det = detectVehicleByPlate(plate);
@@ -1812,13 +1906,13 @@ function crearClientePortal(doc, name, phone, email, plate, type){
    Ventana del semáforo: 10 días antes, 3 días antes y el mismo día.
    ═══════════════════════════════════════════════════════════════ */
 const FUP_STAGES = [
-  {id:'nuevo',        label:'Por contactar',        desc:'Aún sin primer contacto'},
+  {id:'inasistida',   label:'Citas inasistidas',    desc:'No llegaron a su cita'},
   {id:'contacto1',    label:'Contactado (1ª vez)',  desc:'Primer mensaje enviado'},
   {id:'contacto2',    label:'2º contacto (24 h)',   desc:'Seguimiento al día siguiente'},
   {id:'agendada',     label:'Cita agendada',        desc:'Ya tiene turno'},
   {id:'asistida',     label:'Cita asistida',        desc:'Vino al CDA'},
   {id:'seguimiento24',label:'Seguimiento (24 h)',   desc:'Post-visita'},
-  {id:'cerrado',      label:'Cerrado / renovó',     desc:'Proceso completo'}
+  {id:'reagendar',    label:'Citas por reagendar',  desc:'Agendar la revisión del próximo año'}
 ];
 // Semáforo: color según días para el vencimiento
 function alertColor(d){ if(d<0) return '#C0392B'; if(d===0) return '#C0392B'; if(d<=3) return '#E67E22'; return '#CBA135'; }
@@ -1837,11 +1931,20 @@ function alertasDeVehiculo(v){
 // ¿ya hay seguimiento abierto para este vehículo+tipo?
 function fupDe(plate,tipo){ return DB.followups.find(f=>f.plate===plate && f.tipo===tipo && f.estado!=='cerrado'); }
 
+function contarAlertas(){
+  let n=0;
+  DB.vehicles.forEach(v=>{
+    if(!clienteVisibleEnAlertas(cliOf(v.clientId))) return;
+    alertasDeVehiculo(v).forEach(a=>{ if(!fupDe(v.plate,a.tipo) && !DB.followups.find(f=>f.plate===v.plate&&f.tipo===a.tipo&&f.estado==='noInteresado')) n++; });
+  });
+  return n;
+}
 function renderAlertas(){
   const box=$('#avAlertas'); if(!box) return;
   // construir lista de alertas vigentes que NO estén ya en el pipeline ni marcadas
   const filas=[];
   DB.vehicles.forEach(v=>{
+    if(!clienteVisibleEnAlertas(cliOf(v.clientId))) return;
     alertasDeVehiculo(v).forEach(a=>{
       if(fupDe(v.plate,a.tipo)) return;                 // ya está en seguimiento
       const noInt=DB.followups.find(f=>f.plate===v.plate && f.tipo===a.tipo && f.estado==='noInteresado');
@@ -1892,7 +1995,7 @@ function abrirContacto(key){
     `<button class="btn btn-o" data-mclose>Cancelar</button>`);
   $$('#modal [data-cact]').forEach(b=>b.addEventListener('click',()=>{
     const accion=b.dataset.cact;
-    const base={id:uid('f'),plate,tipo,fecha,clientId:v.clientId,name:c.name,phone:c.phone,
+    const base={id:uid('f'),owner:miAsesorId()||null,plate,tipo,fecha,clientId:v.clientId,name:c.name,phone:c.phone,
       creado:iso(today), hist:[{et: accion==='seguir'?'contacto1':'noInteresado', fecha:iso(today)}]};
     if(accion==='seguir'){ base.estado='contacto1'; DB.followups.push(base); logAct(`Contacto registrado · ${plate} (${tipo}) → seguimiento`); toast('✅ Enviado al pipeline de seguimiento'); }
     else { base.estado='noInteresado'; DB.followups.push(base); logAct(`Contacto registrado · ${plate} (${tipo}) → no interesado`); toast('Marcado como no interesado'); }
@@ -1904,12 +2007,13 @@ function abrirAgendarPipeline(f){
   const v=vehByPlate(f.plate)||{type:'automovil'};
   const slots=(DB.config && DB.config.slots)||['08:00','09:00','10:00','11:00','14:00','15:00','16:00'];
   // estado local del agendador
-  let pcDate=iso(today), pcTime=null, pcServ='revision';
+  const _reag=f.estado==='reagendar';
+  let pcDate=_reag?fechaProximoAnio(f):iso(today), pcTime=null, pcServ='revision';
   function gridHTML(){
-    const d=pcDate;
-    const libres=slots.filter(t=>!DB.appts.some(a=>a.date===d && a.time===t && a.status!=='Cancelada'));
+    const d=pcDate; const slots=slotsFor(d);
+    const libres=slots.filter(t=>!horaPasada(d,t)&&!DB.appts.some(a=>a.date===d && a.time===t && a.status!=='Cancelada'));
     return `<div class="pc-slots">${slots.map(t=>{
-      const ocup=DB.appts.some(a=>a.date===d && a.time===t && a.status!=='Cancelada');
+      const ocup=horaPasada(d,t)||DB.appts.some(a=>a.date===d && a.time===t && a.status!=='Cancelada');
       const sel = t===pcTime;
       return `<button type="button" class="pc-slot${ocup?' ocup':''}${sel?' sel':''}" ${ocup?'disabled':''} data-pcslot="${t}">${t}${ocup?'<small>Ocupado</small>':''}</button>`;
     }).join('')}</div>
@@ -1938,6 +2042,7 @@ function abrirAgendarPipeline(f){
     `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="pcSave">Crear cita</button>`);
   // preseleccionar el asesor del usuario si lo tiene
   const yo=ADVISORS.find(a=>currentUser&&a.id===currentUser.advisorId); if(yo) $('#pcAdvName').value=yo.name;
+  if(esAsesor()) $('#pcAdvName').readOnly=true;
   function repaint(){ $('#pcGrid').innerHTML=gridHTML();
     $$('#pcGrid [data-pcslot]').forEach(b=>b.addEventListener('click',()=>{ pcTime=b.dataset.pcslot; repaint(); })); }
   repaint();
@@ -1949,15 +2054,20 @@ function abrirAgendarPipeline(f){
     // asesor: usar el escrito; si es nuevo, crearlo
     const advName=$('#pcAdvName').value.trim();
     let advId=null;
-    if(advName){ const hit=ADVISORS.find(a=>a.name.toLowerCase()===advName.toLowerCase()); advId = hit?hit.id:crearAsesor(advName); }
+    if(esAsesor()) advId=miAsesorId();
+    else if(advName){ const hit=ADVISORS.find(a=>a.name.toLowerCase()===advName.toLowerCase()); advId = hit?hit.id:crearAsesor(advName); }
     const cl=cliOf(f.clientId);
     const ap={id:uid('a'),clientId:f.clientId,plate:f.plate,name:f.name,phone:f.phone,email:(cl&&cl.email)||'',
       type:(v&&v.type)||'automovil',date:pcDate,time:pcTime,status:'Confirmada',source:'Seguimiento',
       code:genCode('CIT'),advisorId:advId,confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:true,
-      origen:'pipeline', venc:f.tipo};
+      origen:'pipeline', venc:f.tipo, creadaPor:miAsesorId()||null,creado:iso(today)};
     if(pcServ==='preventiva') ap.tipoServicio='preventiva';
+    aplicarConvenio('',cl,ap);
     DB.appts.push(ap);
-    f.apptId=ap.id; f.estado='agendada'; f.hist=f.hist||[]; f.hist.push({et:'agendada',fecha:iso(today),cita:pcDate+' '+pcTime});
+    const _proxAnio=_reag||daysTo(pcDate)>=180;
+    f.apptId=ap.id; f.hist=f.hist||[];
+    if(_proxAnio){ f.estado='cerrado'; f.hist.push({et:'reagendada-proximo-anio',fecha:iso(today),cita:pcDate+' '+pcTime}); setTimeout(()=>toast('📅 Cita del próximo año agendada · sale del pipeline'),60); }
+    else { f.estado='agendada'; f.hist.push({et:'agendada',fecha:iso(today),cita:pcDate+' '+pcTime}); }
     logAct(`Pipeline · cita creada ${f.plate} · ${fmtDate(pcDate)} ${pcTime} (${pcServ})`);
     closeModal(); renderAdmin();
     toast('✅ Cita creada y visible en el calendario'+(pcServ==='preventiva'?' y Preventivas':''));
@@ -1966,20 +2076,28 @@ function abrirAgendarPipeline(f){
 
 function renderPipeline(){
   const box=$('#avPipe'); if(!box) return;
-  const activos=DB.followups.filter(f=>f.estado!=='noInteresado');
-  const noInt=DB.followups.filter(f=>f.estado==='noInteresado');
+  try{ syncInasistidas(); }catch(e){ console.warn(e); }
+  const _fv=fupVisibles();
+  _fv.forEach(f=>{ if(f.estado==='nuevo') f.estado='contacto1'; });
+  const activos=_fv.filter(f=>f.estado!=='noInteresado'&&f.estado!=='cerrado');
+  const noInt=_fv.filter(f=>f.estado==='noInteresado');
   const col=(st)=>{
     const items=activos.filter(f=>f.estado===st.id);
-    return `<div class="kb-col" data-kbcol="${st.id}">
+    return `<div class="kb-col${st.id==='inasistida'?' kb-col-red':''}${st.id==='reagendar'?' kb-col-next':''}" data-kbcol="${st.id}">
       <div class="kb-head"><b>${st.label}</b><span class="kb-count">${items.length}</span></div>
       <div class="kb-body">${items.map(f=>{
         const d=daysTo(f.fecha);
-        const msg=`Hola ${f.name.split(' ')[0]||''}, seguimos pendientes de la renovación de su ${f.tipo} (placa ${f.plate}). ¿Le ayudamos a agendar? 🚗`;
+        const _n=f.name.split(' ')[0]||'';
+        const msg= f.estado==='inasistida' ? `Hola ${_n}, le escribimos de CDA Revitolima. Notamos que no pudo asistir a su cita${f.citaFecha?' del '+fmtDate(f.citaFecha)+(f.citaHora?' a las '+f.citaHora:''):''} (placa ${f.plate}). ¿Le reagendamos? Tenemos turnos disponibles 🚗`
+          : f.estado==='reagendar' ? `Hola ${_n}, gracias por revisar su vehículo (placa ${f.plate}) con CDA Revitolima. ¿Le dejamos agendada de una vez su revisión del próximo año? Así no se le pasa la fecha 📅`
+          : `Hola ${_n}, seguimos pendientes de la renovación de su ${f.tipo} (placa ${f.plate}). ¿Le ayudamos a agendar? 🚗`;
         const wa=f.phone?`https://wa.me/57${f.phone}?text=${encodeURIComponent(msg)}`:'';
         return `<div class="kb-card" draggable="true" data-fup="${f.id}" data-kbcli="${f.clientId}" title="Arrastra para mover · clic para ver ficha">
           <div class="kb-plate"><span class="plate">${f.plate}</span><span class="pill ${f.tipo==='SOAT'?'pill-neu':'pill-warn'}" style="font-size:.6rem">${f.tipo}</span></div>
           <div class="kb-name">${f.name}</div>
-          <div class="kb-meta">${fmtDate(f.fecha)} · <span style="color:${alertColor(d)}">${alertLabel(d)}</span></div>
+          ${f.estado==='inasistida'?`<div class="kb-meta" style="color:var(--danger);font-weight:700">No asistió${f.citaFecha?' · cita '+fmtDate(f.citaFecha)+' '+(f.citaHora||''):''}</div>`
+            : f.estado==='reagendar'?`<div class="kb-meta">Próxima revisión: <b>${fmtDate(fechaProximoAnio(f))}</b></div>`
+            : `<div class="kb-meta">${fmtDate(f.fecha)} · <span style="color:${alertColor(d)}">${alertLabel(d)}</span></div>`}
           <div class="kb-actions">
             ${wa?`<a class="kb-wa" href="${wa}" target="_blank" rel="noopener" title="WhatsApp">💬</a>`:''}
             <select class="kb-move" data-fupmove="${f.id}">
@@ -1992,9 +2110,10 @@ function renderPipeline(){
     </div>`;
   };
   box.innerHTML = `
-    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
       ${kpi('En seguimiento',activos.length,'chart','Clientes en proceso')}
-      ${kpi('Cerrados / renovaron',DB.followups.filter(f=>f.estado==='cerrado').length,'check','Éxitos','win')}
+      ${kpi('Citas inasistidas',activos.filter(f=>f.estado==='inasistida').length,'alert','No llegaron · reagendar','alert')}
+      ${kpi('Por reagendar',activos.filter(f=>f.estado==='reagendar').length,'cal','Cita del próximo año')}
       ${kpi('No interesados',noInt.length,'user','Reaparecen al vencer de nuevo','warn')}
     </div>
     <div class="kb-scroll"><div class="kb-board">${FUP_STAGES.map(col).join('')}</div></div>
@@ -2046,6 +2165,425 @@ function renderPipeline(){
   bindWA();
 }
 
+
+/* ═══════ PIPELINE: inasistencias y reagendamiento ═══════ */
+function ownerDeCita(a){ const c=cliOf(a.clientId); return (c&&c.ownerAdvisorId)||a.creadaPor||null; }
+// Cada cita marcada "Inasistente" (por caja o automáticamente) entra a la columna roja del pipeline.
+function syncInasistidas(){
+  if(!DB.followups) return;
+  DB.appts.forEach(a=>{
+    if(a.status!=='Inasistente' || a.fupInasistida) return;
+    const own=ownerDeCita(a);
+    if(esAsesor() && own!==miAsesorId()) return;            // el asesor solo procesa lo suyo
+    let f=DB.followups.find(x=>x.plate===a.plate && x.estado!=='cerrado' && x.estado!=='noInteresado' && (!esAsesor()||x.owner===own));
+    const c=cliOf(a.clientId)||{};
+    if(!f){ f={id:uid('f'),owner:own,plate:a.plate,tipo:a.tipoServicio==='preventiva'?'Preventiva':'RTM',
+      fecha:(vehByPlate(a.plate)||{}).due||a.date,clientId:a.clientId,name:a.name||c.name||'',phone:a.phone||c.phone||'',creado:iso(today),hist:[]};
+      DB.followups.push(f); }
+    f.estado='inasistida'; f.apptId=a.id; f.citaFecha=a.date; f.citaHora=a.time;
+    f.hist=f.hist||[]; f.hist.push({et:'inasistida',fecha:iso(today),cita:a.date+' '+a.time});
+    a.fupInasistida=true;
+  });
+}
+function fechaProximoAnio(f){
+  const v=vehByPlate(f.plate);
+  if(v&&v.due&&daysTo(v.due)>=180) return v.due;
+  const base=f.citaFecha&&daysTo(f.citaFecha)<=0?new Date(f.citaFecha+'T12:00:00'):new Date(iso(today)+'T12:00:00');
+  return iso(addDays(base,365));
+}
+
+/* ═══════ IMAGEN DEL CONVENIO PARA IMPRIMIR ═══════ */
+function _rr(x,X,Y,W,H,R){ x.beginPath(); x.moveTo(X+R,Y); x.arcTo(X+W,Y,X+W,Y+H,R); x.arcTo(X+W,Y+H,X,Y+H,R); x.arcTo(X,Y+H,X,Y,R); x.arcTo(X,Y,X+W,Y,R); x.closePath(); }
+function _cargarImg(src){ return new Promise((ok,no)=>{ const im=new Image(); im.onload=()=>ok(im); im.onerror=no; im.src=src; }); }
+function _wrap(x,t,cx,y,maxW,lh,maxL){ const w=String(t||'').split(/\s+/); const L=[]; let cur='';
+  w.forEach(p=>{ const tst=cur?cur+' '+p:p; if(x.measureText(tst).width>maxW&&cur){ L.push(cur); cur=p; } else cur=tst; }); if(cur) L.push(cur);
+  const out=L.slice(0,maxL); if(L.length>maxL) out[maxL-1]=out[maxL-1].replace(/.{0,2}$/,'…');
+  out.forEach((ln,k)=>x.fillText(ln,cx,y+k*lh)); return out.length; }
+function nombreArchivoConvenio(cv){ return 'Convenio_'+cv.codigo+'_'+String(cv.empresa.razon).normalize('NFD').replace(/[^\w]+/g,'_').replace(/_+/g,'_').slice(0,40)+'.png'; }
+async function imagenConvenio(cv,sinLogo){
+  const W=1275,H=1650, c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+  const VERDE='#0F3319', V2='#1D6132', LIMA='#C9F04A', GRIS='#5F6B5E', F='"Inter","Segoe UI",Arial,sans-serif';
+  x.fillStyle='#FBFAF6'; x.fillRect(0,0,W,H);
+  _rr(x,60,60,W-120,H-120,44); x.fillStyle='#fff'; x.fill(); x.lineWidth=6; x.strokeStyle=VERDE; x.stroke();
+  x.save(); _rr(x,60,60,W-120,H-120,44); x.clip(); x.fillStyle=VERDE; x.fillRect(60,60,W-120,400);
+  const cols=['#6D28D9',VERDE,V2,'#B7862C','#FAC800'], sw=(W-120)/cols.length; cols.forEach((k,i)=>{ x.fillStyle=k; x.fillRect(60+i*sw,H-90,sw+1,30); }); x.restore();
+  _rr(x,W/2-320,120,640,270,34); x.fillStyle='#fff'; x.fill();
+  let logo=null; if(!sinLogo){ try{ logo=await _cargarImg(LOGO_SRC); }catch(e){ logo=null; } }
+  x.textAlign='center';
+  if(logo){ const lw=560, lh=Math.min(230,logo.height*lw/logo.width); x.drawImage(logo,W/2-lw/2,120+(270-lh)/2,lw,lh); }
+  else { x.fillStyle=VERDE; x.font='900 74px '+F; x.fillText('CDA',W/2,250); x.fillStyle='#7A1F1F'; x.font='800 46px '+F; x.fillText('REVITOLIMA',W/2,315); }
+  x.fillStyle=V2; x.font='800 34px '+F; x.fillText('CONVENIO EMPRESARIAL',W/2,535);
+  x.fillStyle=VERDE; x.font='800 66px '+F; const nl=_wrap(x,cv.empresa.razon,W/2,625,W-260,76,2);
+  const yC=nl>1?850:790;
+  x.fillStyle=GRIS; x.font='700 30px '+F; x.fillText('CÓDIGO DE CONVENIO',W/2,yC);
+  _rr(x,140,yC+30,W-280,300,44); x.fillStyle=LIMA; x.fill();
+  let fs=220; x.font='900 '+fs+'px "IBM Plex Mono",Consolas,monospace'; while(x.measureText(cv.codigo).width>W-360&&fs>90){ fs-=10; x.font='900 '+fs+'px "IBM Plex Mono",Consolas,monospace'; }
+  x.fillStyle=VERDE; x.fillText(cv.codigo,W/2,yC+30+150+fs*0.36);
+  const yI=yC+410; x.fillStyle='#12190F'; x.font='700 38px '+F;
+  x.fillText('Preséntalo al agendar tu revisión técnico-mecánica',W/2,yI); x.fillText('en cdarevitolima.co o al llegar al CDA',W/2,yI+52);
+  x.fillStyle=GRIS; x.font='500 28px '+F;
+  x.fillText(`Representante legal: ${cv.rep.nombre}${cv.advisorId?'  ·  Asesor: '+advNombre(cv.advisorId):''}`,W/2,yI+130);
+  x.fillStyle=V2; x.font='800 32px '+F; x.fillText('Calle 111 #20-25 Sur, Aparco · Ibagué · 321 356 6313',W/2,H-210);
+  x.fillStyle=GRIS; x.font='500 24px '+F; x.fillText(`L–V ${horarioTexto('lv')}  ·  Sáb ${horarioTexto('sab')}  ·  Dom y festivos ${horarioTexto('dom')}`,W/2,H-160);
+  try{ return c.toDataURL('image/png'); }
+  catch(e){ if(!sinLogo) return imagenConvenio(cv,true); throw e; }   // por si el logo no se puede usar (archivo local)
+}
+function imprimirImagen(url,titulo){
+  const w=window.open('','_blank'); if(!w) return toast('Permite las ventanas emergentes para imprimir');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title><style>@page{size:letter;margin:10mm}body{margin:0;display:flex;justify-content:center}img{width:100%;max-width:190mm;height:auto}</style></head><body><img src="${url}" onload="setTimeout(()=>window.print(),300)"></body></html>`);
+  w.document.close();
+}
+async function mostrarImagenConvenio(cv,recien){
+  const wa=cv.rep&&cv.rep.telefono?`https://wa.me/57${cv.rep.telefono}?text=${encodeURIComponent(mensajeConvenio(cv))}`:'';
+  modal(recien?'✅ Convenio creado':'Imagen del convenio '+cv.codigo,`
+    ${recien?`<p style="font-size:.86rem;color:var(--ink-2);margin-bottom:12px">${cv.advisorId?`Quedó registrado a nombre de <b>${advNombre(cv.advisorId)}</b>: todas las revisiones que lleguen con este código se le suman.`:'Quedó como convenio directo del CDA (sin asesor).'} El sistema generó la imagen para imprimir:</p><div class="conv-codebox" style="margin-bottom:12px"><span>Código del convenio</span><b>${cv.codigo}</b></div>`:''}
+    <div class="conv-img-wrap"><div class="conv-img-load">Generando imagen…</div></div>`,
+    `<button class="btn btn-o" data-mclose>Cerrar</button>${wa?`<a class="btn btn-wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>`:''}<button class="btn btn-o" id="cvImgPrint" disabled>Imprimir</button><a class="btn btn-p" id="cvImgDl" download="${nombreArchivoConvenio(cv)}">Descargar imagen</a>`);
+  $$('[data-mclose]').forEach(b=>b.addEventListener('click',closeModal));
+  let url; try{ url=await imagenConvenio(cv); }catch(e){ const w=$('.conv-img-wrap'); if(w) w.innerHTML='<p style="color:var(--danger)">No se pudo generar la imagen en este navegador.</p>'; return; }
+  window.__convImg=url;
+  const w=$('.conv-img-wrap'); if(!w) return;
+  w.innerHTML=`<img src="${url}" alt="Imagen del convenio ${cv.codigo}" class="conv-img">`;
+  const dl=$('#cvImgDl'); if(dl) dl.href=url;
+  const pr=$('#cvImgPrint'); if(pr){ pr.disabled=false; pr.onclick=()=>imprimirImagen(url,'Convenio '+cv.codigo); }
+}
+
+/* ═══════ FORMATO FÍSICO DE BASE DE DATOS ═══════ */
+function formatoBaseDatosHTML(asesor){
+  const caj=(n,cls='')=>`<span class="cj ${cls}">${'<i></i>'.repeat(n)}</span>`;
+  const fila=k=>`<tr><td class="n">${k}</td><td>${caj(6,'pl')}</td><td></td><td></td><td>${caj(10,'cel')}</td><td></td>
+    <td class="tp"><label><i></i>Carro</label><label><i></i>Moto</label><label><i></i>Público</label></td>
+    <td>${caj(2,'f')}<b>/</b>${caj(2,'f')}<b>/</b>${caj(2,'f')}</td><td>${caj(2,'f')}<b>/</b>${caj(2,'f')}<b>/</b>${caj(2,'f')}</td><td></td><td></td></tr>`;
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Formato base de datos · CDA Revitolima</title>
+  <style>
+    @page{size:letter landscape;margin:8mm 9mm}
+    *{box-sizing:border-box}
+    body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;color:#15201A;margin:0;font-size:9.5px}
+    .hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid #164A26;padding-bottom:7px}
+    .hd img{height:46px}
+    .ti{flex:1}.ti h1{margin:0;font-size:17px;color:#0F3319;letter-spacing:.02em}.ti p{margin:2px 0 0;font-size:9.5px;color:#4B564F}
+    .org{text-align:right;font-size:8.5px;color:#6E786C;line-height:1.5}.org b{color:#0F3319;font-size:10px;display:block}
+    .meta{display:flex;gap:10px;margin:7px 0 5px}
+    .meta div{flex:1;border:1.5px solid #164A26;border-radius:6px;padding:4px 8px;height:34px;font-size:8px;font-weight:700;color:#164A26;text-transform:uppercase;letter-spacing:.05em}
+    .meta div span{display:block;font-size:12px;color:#15201A;text-transform:none;letter-spacing:0;font-weight:600;margin-top:3px}
+    .ins{background:#FFF6E0;border-left:4px solid #FAC800;padding:4px 9px;font-size:9px;color:#5A4300;margin-bottom:5px;border-radius:0 5px 5px 0}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}
+    th{background:#164A26;color:#fff;font-size:7.6px;text-transform:uppercase;letter-spacing:.04em;padding:5px 3px;border:1px solid #164A26;line-height:1.2}
+    th small{display:block;font-weight:400;text-transform:none;opacity:.85;font-size:7px}
+    td{border:1px solid #9AA59A;height:37px;padding:2px 3px;vertical-align:middle}
+    tr:nth-child(even) td{background:#FAFAF6}
+    td.n{text-align:center;font-weight:700;color:#164A26}
+    .cj{display:inline-flex;gap:0}.cj i{display:inline-block;width:13px;height:19px;border:1px solid #6E786C;border-right:none;background:#fff}
+    .cj i:last-child{border-right:1px solid #6E786C}.cj.cel i{width:11.5px}.cj.f i{width:10px}
+    td b{margin:0 1px;color:#6E786C}
+    .tp label{display:block;font-size:7.6px;line-height:1.45}.tp i{display:inline-block;width:8px;height:8px;border:1px solid #6E786C;margin-right:3px;vertical-align:-1px;background:#fff}
+    .ft{margin-top:5px;font-size:7.6px;color:#4B564F;line-height:1.45;display:flex;gap:14px}
+    .ft p{margin:0;flex:1}.sig{width:210px;border-top:1px solid #15201A;text-align:center;padding-top:2px;margin-top:16px}
+    .band{height:5px;display:flex;margin-top:5px}.band i{flex:1}
+  </style></head><body>
+  <div class="hd"><img src="${LOGO_SRC}" alt="CDA Revitolima"><div class="ti"><h1>FORMATO BASE DE DATOS · CLIENTES</h1>
+    <p>Datos para recordarle a tiempo el vencimiento de su revisión técnico-mecánica (RTM) y del SOAT, y atenderlo más rápido en el CDA.</p></div>
+    <div class="org"><b>CDA REVITOLIMA S.A.S.</b>NIT 901.841.056-1<br>Calle 111 #20-25 Sur, Aparco · Ibagué<br>321 356 6313 · cdarevitolima.co</div></div>
+  <div class="meta"><div>Asesor<span>${asesor||''}</span></div><div>Fecha<span>____ / ____ / ________</span></div>
+    <div>Código de convenio (si aplica)<span>CDA - ____ ____ ____ ____</span></div><div style="flex:.55">Hoja<span>____ de ____</span></div></div>
+  <div class="ins"><b>Cómo llenarlo:</b> bolígrafo negro, LETRA DE IMPRENTA EN MAYÚSCULAS, un número o letra por casilla. Fechas en DÍA / MES / AÑO (ej. 08/03/27). Marque una sola opción en tipo de vehículo. Si un dato no se sabe, déjelo en blanco.</div>
+  <table><colgroup><col style="width:2.6%"><col style="width:9.4%"><col style="width:15.5%"><col style="width:9.2%"><col style="width:12.6%"><col style="width:10.2%"><col style="width:6.4%"><col style="width:8.4%"><col style="width:8.4%"><col style="width:8.3%"><col style="width:9%"></colgroup>
+  <thead><tr><th>N°</th><th>Placa<small>3 letras + números</small></th><th>Nombre completo</th><th>Cédula</th><th>Celular<small>10 dígitos</small></th><th>Correo<small>opcional</small></th><th>Tipo</th><th>Vence RTM<small>DD / MM / AA</small></th><th>Vence SOAT<small>DD / MM / AA</small></th><th>Observación</th><th>Firma<small>autoriza sus datos</small></th></tr></thead>
+  <tbody>${Array.from({length:11},(_,k)=>fila(k+1)).join('')}</tbody></table>
+  <div class="ft"><p><b>Autorización de tratamiento de datos:</b> con su firma, el titular autoriza a CDA REVITOLIMA S.A.S. (NIT 901.841.056-1) a tratar sus datos personales para recordarle los vencimientos de la RTM y el SOAT, agendar citas y enviarle información del servicio por llamada, WhatsApp o correo, de acuerdo con la Ley 1581 de 2012. Puede conocer, actualizar o suprimir sus datos escribiendo al 321 356 6313.</p>
+    <div class="sig">Firma del asesor</div></div>
+  <div class="band"><i style="background:#6D28D9"></i><i style="background:#0F3319"></i><i style="background:#1D6132"></i><i style="background:#B7862C"></i><i style="background:#FAC800"></i></div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),350);<\/script>
+  </body></html>`;
+}
+function imprimirFormato(){ const n=esAsesor()?advNombre(miAsesorId()):''; openDoc(formatoBaseDatosHTML(n)); logAct('Formato de base de datos descargado'); }
+
+/* ═══════ CARGA MASIVA DE CLIENTES DESDE FORMATOS ═══════ */
+const _escH=s=>String(s==null?'':s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+let _carga=[];
+function _leerBase64(file){ return new Promise((ok,no)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(',')[1]); r.onerror=()=>no(new Error('LECTURA')); r.readAsDataURL(file); }); }
+async function archivoParaLector(file){
+  const esPdf=/pdf$/i.test(file.type)||/\.pdf$/i.test(file.name);
+  if(esPdf){ if(file.size>9*1024*1024) throw new Error('PDF_GRANDE'); return {tipo:'application/pdf',data:await _leerBase64(file),nombre:file.name}; }
+  const url=URL.createObjectURL(file);
+  try{ const im=await _cargarImg(url); const m=2000, k=Math.min(1,m/Math.max(im.width,im.height));
+    const cv=document.createElement('canvas'); cv.width=Math.round(im.width*k); cv.height=Math.round(im.height*k);
+    const x=cv.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,cv.width,cv.height); x.drawImage(im,0,0,cv.width,cv.height);
+    return {tipo:'image/jpeg',data:cv.toDataURL('image/jpeg',0.86).split(',')[1],nombre:file.name};
+  } finally { URL.revokeObjectURL(url); }
+}
+function _isoFecha(s){
+  s=String(s||'').trim(); if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/); if(!m) return '';
+  let y=+m[3]; if(y<100) y+=2000; const d=String(+m[1]).padStart(2,'0'), mo=String(+m[2]).padStart(2,'0');
+  const out=`${y}-${mo}-${d}`; return isNaN(new Date(out+'T12:00:00'))?'':out;
+}
+function _tipoCarga(t){ t=String(t||'').toLowerCase(); if(/moto/.test(t)) return 'moto'; if(/p[uú]blic|taxi/.test(t)) return 'publico'; if(/carro|auto|particular|camion/.test(t)) return 'carro'; return ''; }
+function normFilaCarga(f,hoja){
+  return {incluir:true, placa:String(f.placa||'').toUpperCase().replace(/[^A-Z0-9]/g,''), nombre:String(f.nombre||'').trim().replace(/\s+/g,' '),
+    cedula:String(f.cedula||'').replace(/\D/g,''), celular:String(f.celular||'').replace(/\D/g,'').replace(/^57(?=\d{10}$)/,''),
+    correo:String(f.correo||'').trim(), tipo:_tipoCarga(f.tipo), venceRTM:_isoFecha(f.venceRTM), venceSOAT:_isoFecha(f.venceSOAT),
+    convenio:String(f.convenio||(hoja&&hoja.convenio)||'').trim(), observacion:String(f.observacion||'').trim()};
+}
+function filaCargaVacia(){ return normFilaCarga({}); }
+function problemasFila(f,idx){
+  const p=[], aviso=[];
+  if(!/^[A-Z]{3}\d{2,3}[A-Z]?$/.test(f.placa)) p.push('placa');
+  if(f.nombre.length<5) p.push('nombre');
+  if(!/^\d{6,12}$/.test(f.cedula)) p.push('cédula');
+  if(!/^\d{10}$/.test(f.celular)) p.push('celular');
+  if(f.correo && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(f.correo)) p.push('correo');
+  if(f.convenio && !buscarConvenio(f.convenio)) p.push('convenio');
+  if(_carga.some((o,k)=>k!==idx&&o.incluir&&o.placa&&o.placa===f.placa)) p.push('placa repetida en la hoja');
+  const v=f.placa&&vehByPlate(f.placa);
+  if(v){ const ow=cliOf(v.clientId); if(ow&&ow.doc&&ow.doc!==f.cedula) aviso.push('la placa está a nombre de otra cédula: solo se actualizan las fechas'); else aviso.push(ow&&!ow.doc?'placa ya registrada: se actualiza y se completa la cédula':'placa ya registrada: se actualiza'); }
+  const c=f.cedula&&DB.clients.find(x=>x.doc===f.cedula); if(c&&!v) aviso.push('cliente ya existe: se le agrega el vehículo');
+  return {p,aviso};
+}
+function abrirCargaMasiva(){
+  modal('Subir clientes masivamente',`
+    <p style="font-size:.88rem;color:var(--ink-2);margin-bottom:12px">Sube las fotos o PDF de los <b>formatos físicos diligenciados</b>. El sistema lee los datos, te muestra una tabla para corregir y luego subes todos los clientes de una vez.</p>
+    <label class="carga-drop" for="cgFiles"><b>Toca para elegir archivos</b><span>JPG, PNG o PDF · puedes elegir varios</span></label>
+    <input type="file" id="cgFiles" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" multiple style="display:none">
+    <div id="cgList" class="carga-list"></div><div id="cgProg" class="carga-prog" style="display:none"></div>
+    <p style="font-size:.78rem;color:var(--ink-3);margin-top:12px">Para que lea mejor: foto derecha, con buena luz y la hoja completa. ¿Sin fotos? <a href="#" id="cgManual">Escribe los clientes a mano en la tabla</a>.</p>`,
+    `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="cgLeer" disabled>Leer formatos</button>`);
+  $$('[data-mclose]').forEach(b=>b.addEventListener('click',closeModal));
+  let files=[];
+  $('#cgFiles').addEventListener('change',e=>{
+    files=[...e.target.files].filter(f=>/\.(jpe?g|png|pdf)$/i.test(f.name)||/^(image\/(jpeg|png)|application\/pdf)$/.test(f.type));
+    $('#cgList').innerHTML=files.length?files.map(f=>`<div>📄 ${_escH(f.name)} <small>${Math.max(1,Math.round(f.size/1024))} KB</small></div>`).join(''):'<small>Ningún archivo válido (solo JPG, PNG o PDF).</small>';
+    $('#cgLeer').disabled=!files.length;
+  });
+  $('#cgManual').addEventListener('click',e=>{ e.preventDefault(); revisarCarga([], ''); });
+  $('#cgLeer').addEventListener('click',async()=>{
+    $('#cgLeer').disabled=true; const prog=$('#cgProg'); prog.style.display='';
+    const filas=[], fallos=[];
+    for(let i=0;i<files.length;i++){
+      prog.textContent=`Leyendo ${i+1} de ${files.length}: ${files[i].name}…`;
+      try{ const arch=await archivoParaLector(files[i]); const r=await sbLeerFormato(arch,iso(today));
+        ((r&&r.filas)||[]).forEach(f=>{ const n=normFilaCarga(f,r); n.origen=files[i].name; if(n.placa||n.nombre||n.celular) filas.push(n); });
+      }catch(err){ console.warn('lector',err); fallos.push(files[i].name); }
+    }
+    revisarCarga(filas, fallos.length?`No se pudo leer automáticamente: ${fallos.map(_escH).join(', ')}. ${filas.length?'Revisa los demás y':'Puedes'} escribir esos datos a mano en la tabla.`:'');
+  });
+}
+function revisarCarga(filas,aviso){
+  _carga = filas.length? filas : Array.from({length:5},filaCargaVacia);
+  let verificado=false;
+  modal('Revisa los datos antes de subir',`
+    ${aviso?`<div class="note-box" style="margin-bottom:12px;background:#FFF6E0;border-color:#F0DFB0;color:#7A5A00">${aviso}</div>`:''}
+    <p style="font-size:.84rem;color:var(--ink-2);margin-bottom:10px">${filas.length?`El sistema leyó <b>${filas.length}</b> cliente(s).`:'Escribe los clientes.'} Corrige lo necesario y pulsa <b>Verificar datos</b>. Las filas en rojo no se suben hasta que se corrijan.</p>
+    <div class="tw carga-tw"><table class="carga-tbl"><thead><tr><th title="Incluir">✓</th><th>Placa</th><th>Nombre completo</th><th>Cédula</th><th>Celular</th><th>Tipo</th><th>Vence RTM</th><th>Vence SOAT</th><th>Correo</th><th>Convenio</th><th>Revisión</th></tr></thead><tbody id="cgBody"></tbody></table></div>
+    <button class="btn btn-o btn-sm" id="cgAdd" style="margin-top:10px">+ Agregar fila</button>
+    <div id="cgRes" class="carga-res"></div>`,
+    `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-o" id="cgVerif">Verificar datos</button><button class="btn btn-p" id="cgSubir" disabled>Subir clientes</button>`);
+  $$('[data-mclose]').forEach(b=>b.addEventListener('click',closeModal));
+  const inp=(i,k,ph,extra='')=>`<input class="finput cg-in" data-i="${i}" data-k="${k}" value="${_escH(_carga[i][k])}" placeholder="${ph}" ${extra}>`;
+  const pintar=()=>{
+    $('#cgBody').innerHTML=_carga.map((f,i)=>`<tr data-row="${i}">
+      <td><input type="checkbox" class="cg-chk" data-i="${i}" ${f.incluir?'checked':''}></td>
+      <td>${inp(i,'placa','ABC123','style="text-transform:uppercase;width:84px"')}</td><td>${inp(i,'nombre','Nombre y apellido','style="min-width:160px"')}</td>
+      <td>${inp(i,'cedula','Cédula','inputmode="numeric" style="width:104px"')}</td><td>${inp(i,'celular','3XXXXXXXXX','inputmode="numeric" style="width:110px"')}</td>
+      <td><select class="finput cg-in" data-i="${i}" data-k="tipo" style="width:96px"><option value="">—</option>${['carro','moto','publico'].map(t=>`<option value="${t}" ${f.tipo===t?'selected':''}>${t==='publico'?'Público':t[0].toUpperCase()+t.slice(1)}</option>`).join('')}</select></td>
+      <td><input type="date" class="finput cg-in" data-i="${i}" data-k="venceRTM" value="${f.venceRTM}"></td><td><input type="date" class="finput cg-in" data-i="${i}" data-k="venceSOAT" value="${f.venceSOAT}"></td>
+      <td>${inp(i,'correo','opcional','style="width:140px"')}</td><td>${inp(i,'convenio','CDA-0000','style="width:96px;text-transform:uppercase"')}</td>
+      <td class="cg-st" id="cgSt${i}">${f.observacion?`<small style="color:var(--ink-3)">${_escH(f.observacion)}</small>`:''}</td></tr>`).join('');
+    $$('#cgBody .cg-in').forEach(el=>el.addEventListener('input',()=>{ const f=_carga[+el.dataset.i]; f[el.dataset.k]=el.dataset.k==='placa'||el.dataset.k==='convenio'?el.value.toUpperCase().trim():el.value; verificado=false; $('#cgSubir').disabled=true; }));
+    $$('#cgBody select.cg-in').forEach(el=>el.addEventListener('change',()=>{ _carga[+el.dataset.i].tipo=el.value; verificado=false; $('#cgSubir').disabled=true; }));
+    $$('#cgBody .cg-chk').forEach(el=>el.addEventListener('change',()=>{ _carga[+el.dataset.i].incluir=el.checked; verificado=false; $('#cgSubir').disabled=true; }));
+  };
+  pintar();
+  $('#cgAdd').addEventListener('click',()=>{ _carga.push(filaCargaVacia()); pintar(); });
+  $('#cgVerif').addEventListener('click',()=>{
+    _carga=_carga.map(f=>({...normFilaCarga(f),incluir:f.incluir,observacion:f.observacion,origen:f.origen}));
+    pintar();
+    let ok=0, mal=0, upd=0;
+    _carga.forEach((f,i)=>{ const tr=$(`#cgBody tr[data-row="${i}"]`), st=$('#cgSt'+i);
+      if(!f.incluir){ tr.classList.remove('cg-bad','cg-ok'); st.innerHTML='<small>No se sube</small>'; return; }
+      const {p,aviso}=problemasFila(f,i);
+      if(p.length){ mal++; tr.classList.add('cg-bad'); tr.classList.remove('cg-ok'); st.innerHTML=`<b style="color:var(--danger)">Revisar: ${p.join(', ')}</b>`; }
+      else { ok++; if(aviso.length) upd++; tr.classList.add('cg-ok'); tr.classList.remove('cg-bad'); st.innerHTML=`<b style="color:var(--green-700)">✓ Lista</b>${aviso.length?`<small>${aviso.join(' · ')}</small>`:''}`; }
+    });
+    $('#cgRes').innerHTML=`<b>${ok}</b> lista(s) para subir${upd?` (${upd} actualizan datos existentes)`:''} · <b style="color:${mal?'var(--danger)':'inherit'}">${mal}</b> con datos por corregir.`;
+    verificado=ok>0; $('#cgSubir').disabled=!verificado; $('#cgSubir').textContent=ok?`Subir ${ok} cliente${ok===1?'':'s'}`:'Subir clientes';
+  });
+  $('#cgSubir').addEventListener('click',()=>{
+    if(!verificado) return toast('Primero verifica los datos');
+    let nuevos=0, act=0, veh=0;
+    _carga.forEach((f,i)=>{
+      if(!f.incluir || problemasFila(f,i).p.length) return;
+      const v0=vehByPlate(f.placa), dueno=v0?cliOf(v0.clientId):null;
+      let cl=DB.clients.find(c=>c.doc===f.cedula) || (dueno&&dueno.id&&!dueno.doc?dueno:null);
+      if(cl&&!cl.doc) cl.doc=f.cedula;
+      if(!cl){ cl={id:uid('c'),doc:f.cedula,name:f.nombre,phone:f.celular,email:f.correo||'',notes:'Cargado desde formato físico.',creado:iso(today)};
+        if(esAsesor()){ cl.ownerAdvisorId=miAsesorId(); cl.creadoPor=miAsesorId(); } DB.clients.push(cl); nuevos++; }
+      else { if(!cl.phone) cl.phone=f.celular; if(!cl.email&&f.correo) cl.email=f.correo; act++; }
+      const tp=f.tipo==='moto'?'moto':f.tipo==='publico'?'taxi':'automovil';
+      let v=vehByPlate(f.placa);
+      if(!v){ v={id:uid('v'),plate:f.placa,type:tp,cat:vLabel(tp),clientId:cl.id,due:f.venceRTM||null,soat:f.venceSOAT||null}; DB.vehicles.push(v); veh++; }
+      else { if(f.venceRTM) v.due=f.venceRTM; if(f.venceSOAT) v.soat=f.venceSOAT; }
+      if(f.convenio) aplicarConvenio(f.convenio,cl,null);
+    });
+    logAct(`Carga masiva desde formatos · ${nuevos} cliente(s) nuevo(s), ${act} actualizado(s), ${veh} vehículo(s)`); trackAction('carga-masiva');
+    closeModal(); renderAdmin();
+    toast(`✅ ${nuevos} cliente(s) nuevo(s) · ${act} actualizado(s) · ${veh} vehículo(s)`);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONVENIOS · empresas aliadas con código CDA-0000
+   El código se le da a los clientes de la empresa; cada revisión que llegue
+   con ese código queda en la ficha del cliente y se le suma al asesor que hizo el convenio.
+   ═══════════════════════════════════════════════════════════════ */
+function normConvenio(s){ let v=String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,''); if(/^\d{4}$/.test(v)) v='CDA'+v; return v; }
+function fmtConvenio(s){ const m=normConvenio(s).match(/^CDA(\d{4})$/); return m?('CDA-'+m[1]):String(s||'').trim().toUpperCase(); }
+function convenioActivo(c){ return !!c && (c.estado||'Activo')==='Activo'; }
+function buscarConvenio(code){ const n=normConvenio(code); if(n.length<7) return null; return (DB.convenios||[]).find(c=>normConvenio(c.codigo)===n && convenioActivo(c))||null; }
+function convenioPorId(id){ return (DB.convenios||[]).find(c=>c.id===id)||null; }
+function nuevoCodigoConvenio(){
+  const usados=new Set((DB.convenios||[]).map(c=>normConvenio(c.codigo)));
+  for(let i=0;i<300;i++){ const n=String(Math.floor(1000+Math.random()*9000)); if(!usados.has('CDA'+n)) return 'CDA-'+n; }
+  for(let n=1000;n<=9999;n++){ if(!usados.has('CDA'+n)) return 'CDA-'+n; }
+  return null;
+}
+function conveniosVisibles(){ const l=DB.convenios||[]; return esAsesor()? l.filter(c=>c.advisorId===miAsesorId()) : l; }
+function statsConvenio(c){
+  const citas=DB.appts.filter(a=>a.convenioId===c.id && a.status!=='Cancelada');
+  const hechas=citas.filter(a=>a.confirmedArrival||a.status==='Completada');
+  const m=today.getMonth(), y=today.getFullYear();
+  const mes=hechas.filter(a=>{ const d=new Date(a.date+'T00:00:00'); return d.getMonth()===m&&d.getFullYear()===y; });
+  return {citas:citas.length, revisiones:hechas.length, mes:mes.length, clientes:DB.clients.filter(x=>x.convenioId===c.id).length};
+}
+// Marca al cliente y a la cita con el convenio. Si no se escribe código, hereda el del cliente.
+// Devuelve el convenio, null (sin convenio) o false (código escrito pero inválido).
+function aplicarConvenio(codigo, cl, ap){
+  let cv=null; const txt=String(codigo||'').trim();
+  if(txt){ cv=buscarConvenio(txt); if(!cv){ toast('El código de convenio no es válido o está inactivo'); return false; } }
+  else if(cl && cl.convenioId){ const x=convenioPorId(cl.convenioId); if(convenioActivo(x)) cv=x; }
+  if(!cv) return null;
+  if(cl){ if(cl.convenioId!==cv.id) cl.convenioDesde=iso(today); cl.convenioId=cv.id; cl.convenioCodigo=cv.codigo; cl.convenioEmpresa=cv.empresa.razon; }
+  if(ap){ ap.convenioId=cv.id; ap.convenioCodigo=cv.codigo; if(cv.advisorId) ap.advisorId=cv.advisorId; }
+  return cv;
+}
+function kpisConvenios(){
+  const l=conveniosVisibles(), st=l.map(statsConvenio);
+  const sum=k=>st.reduce((s,x)=>s+x[k],0);
+  return `<div class="kpis">
+    ${kpi('Convenios activos',l.filter(convenioActivo).length,'briefcase',`${l.length} en total`)}
+    ${kpi('Revisiones por convenios',sum('revisiones'),'check','Acumulado')}
+    ${kpi('Revisiones por convenios (mes)',sum('mes'),'cal','Mes en curso')}
+    ${kpi('Clientes en convenio',sum('clientes'),'user','Con código de convenio')}</div>`;
+}
+function mensajeConvenio(c){
+  return `Hola ${c.rep.nombre.split(' ')[0]}, el convenio de *${c.empresa.razon}* con CDA Revitolima quedó creado. 🤝\n\n`+
+    `Su código es: *${c.codigo}*\n\nSus colaboradores lo dan al agendar su revisión técnico-mecánica en cdarevitolima.co `+
+    `o cuando lleguen al CDA, y quedan registrados dentro del convenio.\n\nCalle 111 #20-25 Sur, Aparco · Ibagué · 321 356 6313`;
+}
+function renderConvenios(){
+  const box=$('#avConv'); if(!box) return;
+  const lista=conveniosVisibles().slice().sort((a,b)=>String(b.creado||'').localeCompare(String(a.creado||'')));
+  const filas=lista.map(c=>{
+    const s=statsConvenio(c);
+    const adv=c.advisorId?advTag(c.advisorId):'<span class="adv-tag" style="background:#F4F2EA;border-color:#E4E2D7;color:#6E786C">Directo CDA</span>';
+    const wa=c.rep.telefono?`https://wa.me/57${c.rep.telefono}?text=${encodeURIComponent(mensajeConvenio(c))}`:'';
+    return `<tr>
+      <td><span class="conv-code">${c.codigo}</span></td>
+      <td><b>${c.empresa.razon}</b><small>NIT ${c.empresa.nit}${c.empresa.ciudad?' · '+c.empresa.ciudad:''}</small></td>
+      <td><b>${c.rep.nombre}</b><small>C.C. ${c.rep.doc} · ${c.rep.telefono}</small></td>
+      <td>${adv}</td>
+      <td class="num">${s.clientes}</td>
+      <td class="num"><b>${s.revisiones}</b><small>${s.mes} este mes</small></td>
+      <td><span class="pill ${convenioActivo(c)?'pill-ok':'pill-neu'}">${c.estado||'Activo'}</span></td>
+      <td class="tact">
+        <button class="iconbtn" data-convimg="${c.id}" title="Imagen para imprimir">🖼</button>
+        <button class="iconbtn" data-convver="${c.id}" title="Ver / editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        ${wa?`<a class="iconbtn" href="${wa}" target="_blank" rel="noopener" title="Enviar el código por WhatsApp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></a>`:''}
+      </td></tr>`; }).join('');
+  box.innerHTML = kpisConvenios()+
+    panelTable('Convenios','Empresas aliadas. Cada convenio tiene un código CDA-0000 que se le entrega a sus clientes para que lo den en el CDA.',
+      `<div class="tbar"><button class="btn btn-p btn-sm" id="btnNuevoConv">+ Crear convenio</button><button class="btn btn-o btn-sm" id="btnArqConv">Arqueo diario (PDF)</button><button class="btn btn-o btn-sm" data-exp="convenios">Exportar</button></div>`,
+      lista.length?`<thead><tr><th>Código</th><th>Empresa</th><th>Representante legal</th><th>Asesor</th><th>Clientes</th><th>Revisiones</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody>`
+        :`<tbody><tr><td>${emptyBox('Aún no hay convenios','Crea el primero con el botón "Crear convenio". Se genera un código CDA-0000 para entregar a la empresa.')}</td></tr></tbody>`);
+  $('#btnNuevoConv')?.addEventListener('click',()=>abrirConvenio(null));
+  $$('#avConv [data-convver]').forEach(b=>b.addEventListener('click',()=>abrirConvenio(b.dataset.convver)));
+  $$('#avConv [data-convimg]').forEach(b=>b.addEventListener('click',()=>{ const c=convenioPorId(b.dataset.convimg); if(c) mostrarImagenConvenio(c,false); }));
+  $('#btnArqConv')?.addEventListener('click',()=>generarInformePDF('convenios-dia'));
+  bindExports();
+}
+function abrirConvenio(id){
+  const ex=id?convenioPorId(id):null;
+  const cod=ex?ex.codigo:nuevoCodigoConvenio();
+  if(!cod) return toast('No quedan códigos disponibles');
+  const e=ex?ex.empresa:{}, r=ex?ex.rep:{}, val=x=>String(x==null?'':x).replace(/"/g,'&quot;');
+  const advSel=`<select id="cvAdv" class="finput" ${esAsesor()?'disabled':''}>${esAsesor()?'':'<option value="">Ningún asesor (convenio directo del CDA)</option>'}${ADVISORS.map(a=>`<option value="${a.id}" ${(ex?ex.advisorId===a.id:a.id===miAsesorId())?'selected':''}>${a.name}</option>`).join('')}</select>`;
+  modal(ex?'Convenio '+cod:'Crear convenio',`
+    <div class="conv-codebox"><span>Código del convenio</span><b>${cod}</b>
+      <small>${ex?'Es el código que se le da a los clientes de la empresa.':'Se genera solo. Es el que se le entrega a los clientes de la empresa para que lo den en el CDA.'}</small></div>
+    <h4 class="cv-h">Datos de la empresa</h4>
+    <div class="fgrid">
+      <div><label class="flabel">Razón social *</label><input id="cvRazon" class="finput" value="${val(e.razon)}" placeholder="Nombre de la empresa"></div>
+      <div><label class="flabel">NIT *</label><input id="cvNit" class="finput" value="${val(e.nit)}" placeholder="900.000.000-0"></div>
+      <div><label class="flabel">Teléfono *</label><input id="cvTel" class="finput" inputmode="tel" value="${val(e.telefono)}" placeholder="Teléfono de la empresa"></div>
+      <div><label class="flabel">Correo</label><input id="cvMail" class="finput" type="email" value="${val(e.correo)}" placeholder="correo@empresa.com"></div>
+      <div><label class="flabel">Dirección</label><input id="cvDir" class="finput" value="${val(e.direccion)}" placeholder="Dirección"></div>
+      <div><label class="flabel">Ciudad</label><input id="cvCiudad" class="finput" value="${val(e.ciudad)||'Ibagué'}"></div>
+    </div>
+    <h4 class="cv-h">Representante legal</h4>
+    <div class="fgrid">
+      <div><label class="flabel">Nombre completo *</label><input id="cvRepNom" class="finput" value="${val(r.nombre)}" placeholder="Nombre y apellido"></div>
+      <div><label class="flabel">Cédula *</label><input id="cvRepDoc" class="finput" inputmode="numeric" value="${val(r.doc)}" placeholder="Número de cédula"></div>
+      <div><label class="flabel">Celular *</label><input id="cvRepTel" class="finput" inputmode="tel" value="${val(r.telefono)}" placeholder="3XX XXX XXXX"></div>
+      <div><label class="flabel">Correo</label><input id="cvRepMail" class="finput" type="email" value="${val(r.correo)}" placeholder="correo@ejemplo.com"></div>
+      <div><label class="flabel">Cargo</label><input id="cvRepCargo" class="finput" value="${val(r.cargo)||'Representante legal'}"></div>
+    </div>
+    <h4 class="cv-h">Gestión del convenio</h4>
+    <div class="fgrid">
+      <div><label class="flabel">Asesor que hizo el convenio</label>${advSel}</div>
+      ${ex?`<div><label class="flabel">Estado</label><select id="cvEstado" class="finput"><option ${convenioActivo(ex)?'selected':''}>Activo</option><option ${convenioActivo(ex)?'':'selected'}>Inactivo</option></select></div>`:''}
+    </div>
+    <label class="flabel" style="margin-top:12px">Condiciones o notas (opcional)</label>
+    <textarea id="cvNotas" class="finput" rows="2" placeholder="Ej. descuento acordado, vigencia, contacto adicional">${ex?String(ex.notas||'').replace(/</g,'&lt;'):''}</textarea>`,
+    `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="cvSave">${ex?'Guardar cambios':'Crear convenio'}</button>`);
+  $$('[data-mclose]').forEach(x=>x.addEventListener('click',closeModal));
+  $('#cvSave').addEventListener('click',()=>{
+    const v=s=>$(s).value.trim(), dig=s=>v(s).replace(/\D/g,'');
+    const emp={razon:v('#cvRazon'),nit:v('#cvNit'),direccion:v('#cvDir'),ciudad:v('#cvCiudad'),telefono:dig('#cvTel'),correo:v('#cvMail')};
+    const rep={nombre:v('#cvRepNom'),doc:dig('#cvRepDoc'),cargo:v('#cvRepCargo')||'Representante legal',telefono:dig('#cvRepTel'),correo:v('#cvRepMail')};
+    if(emp.razon.length<3||!emp.nit) return toast('Escribe la razón social y el NIT de la empresa');
+    if(emp.telefono.length<7) return toast('Escribe el teléfono de la empresa');
+    if(rep.nombre.length<3||rep.doc.length<5) return toast('Escribe el nombre y la cédula del representante legal');
+    if(rep.telefono.length<7) return toast('Escribe el celular del representante legal');
+    const nitN=emp.nit.replace(/\D/g,'');
+    if((DB.convenios||[]).some(c=>c.id!==(ex&&ex.id) && c.empresa.nit.replace(/\D/g,'')===nitN)) return toast('Ya existe un convenio con ese NIT');
+    const advId=esAsesor()?miAsesorId():($('#cvAdv').value||null);
+    if(ex){
+      Object.assign(ex,{empresa:emp,rep,advisorId:advId,estado:$('#cvEstado').value,notas:v('#cvNotas')});
+      logAct(`Convenio actualizado · ${ex.codigo} · ${emp.razon}`); closeModal(); renderAdmin(); toast('Convenio actualizado'); return;
+    }
+    let codigo=cod; if((DB.convenios||[]).some(c=>normConvenio(c.codigo)===normConvenio(codigo))) codigo=nuevoCodigoConvenio();
+    const nuevo={id:uid('cv'),codigo,empresa:emp,rep,advisorId:advId,estado:'Activo',notas:v('#cvNotas'),creado:iso(today),creadoPor:miAsesorId()||null};
+    DB.convenios.push(nuevo);
+    logAct(`Convenio creado · ${codigo} · ${emp.razon}${advId?' · asesor '+advNombre(advId):''}`); trackAction('crear-convenio');
+    const wa=`https://wa.me/57${rep.telefono}?text=${encodeURIComponent(mensajeConvenio(nuevo))}`;
+    renderAdmin();
+    mostrarImagenConvenio(nuevo,true);
+  });
+}
+// Campo "Código de convenio" de los formularios del admin (con verificación en vivo)
+function convField(id){ return `<div style="grid-column:1/-1"><label class="flabel">Código de convenio (opcional)</label><input id="${id}" class="finput mono" placeholder="CDA-0000" style="text-transform:uppercase" autocomplete="off"><small id="${id}Hint" style="display:block;margin-top:4px;font-size:.76rem;color:var(--ink-3)">Si el cliente viene por un convenio, escribe el código.</small></div>`; }
+function bindConvField(id){
+  const i=$('#'+id), h=$('#'+id+'Hint'); if(!i||!h) return;
+  i.addEventListener('input',()=>{ const t=i.value.trim(); if(!t){ h.style.color='var(--ink-3)'; h.textContent='Si el cliente viene por un convenio, escribe el código.'; return; }
+    const cv=buscarConvenio(t); if(cv){ h.style.color='var(--green-700)'; h.textContent='✓ Convenio con '+cv.empresa.razon+(cv.advisorId?' · '+advNombre(cv.advisorId):''); }
+    else if(normConvenio(t).length>=7){ h.style.color='var(--danger)'; h.textContent='Código no válido o convenio inactivo.'; } else { h.style.color='var(--ink-3)'; h.textContent='Escribe el código completo: CDA-0000'; } });
+}
+function exportConvenios(){
+  return [['Código','Empresa','NIT','Representante legal','Cédula','Celular representante','Asesor','Estado','Clientes','Citas','Revisiones','Revisiones del mes','Creado'],
+    ...conveniosVisibles().map(c=>{ const s=statsConvenio(c); return [c.codigo,c.empresa.razon,c.empresa.nit,c.rep.nombre,c.rep.doc,c.rep.telefono,advNombre(c.advisorId)||'Directo CDA',c.estado||'Activo',s.clientes,s.citas,s.revisiones,s.mes,c.creado||'']; })];
+}
+
 function renderAdmin(){
   refreshBadges();
   const R=rangeDays();
@@ -2091,6 +2629,7 @@ function renderAdmin(){
       ${kpi('Tasa de mora', tasaMora+'%', 'chart', 'Sobre el total de cartera', tasaMora>25?'alert':'')}
       ${kpi('Revisiones por vencer', proxV, 'bell', 'En los próximos 30 días', proxV?'warn':'')}
     </div>
+    ${kpisConvenios()}
 
     <div class="g2" style="align-items:start">
       <div class="panel" style="margin:0"><div class="panel-h"><div><h3>Revisiones por mes</h3><p>Últimos 6 meses</p></div></div>
@@ -2176,11 +2715,13 @@ function renderAdmin(){
   /* CLIENTES */
   $('#avCli').innerHTML = panelTable('Clientes','Información de contacto, vehículos, cartera y financiación por cliente.',
     `<div class="tbar"><input class="finput" id="fCli" placeholder="Buscar nombre o documento...">
-      <button class="btn btn-p btn-sm" id="btnNuevoCli">+ Nuevo cliente</button>
+      <button class="btn btn-p btn-sm" id="btnNuevoCli">+ Nuevo cliente</button><button class="btn btn-o btn-sm" id="btnMasivo">⬆ Subir clientes masivamente</button><button class="btn btn-o btn-sm" id="btnFormato">🖨 Formato para imprimir</button>
       <button class="btn btn-o btn-sm" data-exp="clientes">Exportar</button></div>`,
     `<thead><tr><th>Cliente</th><th>Documento</th><th>Contacto</th><th>Vehículos</th><th>Cartera</th><th>Financiación</th><th></th></tr></thead>
      <tbody id="tbCli"></tbody>`);
   drawCli(); $('#fCli').addEventListener('input',drawCli);
+  $('#btnMasivo')?.addEventListener('click',abrirCargaMasiva);
+  $('#btnFormato')?.addEventListener('click',()=>imprimirFormato());
   $('#btnNuevoCli')?.addEventListener('click',()=>{
     modal('Registrar nuevo cliente','<p style="font-size:.86rem;color:var(--ink-2);margin-bottom:16px">El cliente podrá ingresar al <b>portal cliente</b> con su <b>cédula como usuario y como contraseña</b>.</p>'+
       '<div class="fgrid">'+
@@ -2191,15 +2732,19 @@ function renderAdmin(){
       '<div><label class="flabel">Placa del vehículo *</label><input id="ncPlate" class="finput mono" style="text-transform:uppercase" placeholder="ABC123 o ABC12D"></div>'+
       '<div><label class="flabel">Tipo de vehículo</label><select id="ncType" class="finput"><option value="">Detectar por placa</option><option value="automovil">Automóvil</option><option value="camioneta">Camioneta</option><option value="campero">Campero</option><option value="moto">Motocicleta</option><option value="taxi">Taxi</option><option value="electrico">Eléctrico</option><option value="hibrido">Híbrido</option></select></div>'+
       '<div style="grid-column:1/-1"><label class="flabel">Fecha de vencimiento de la revisión (si la conoce)</label><input id="ncDue" class="finput" type="date"></div>'+
+      convField('ncConv')+
       '</div>',
       '<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="ncSave">Registrar cliente</button>');
     $$('[data-mclose]').forEach(x=>x.addEventListener('click',closeModal));
+    bindConvField('ncConv');
     $('#ncSave').addEventListener('click',()=>{
       const nm=$('#ncName').value.trim(), doc=$('#ncDoc').value.trim(), ph=$('#ncPhone').value.trim();
       const em=$('#ncEmail').value.trim(), pl=$('#ncPlate').value.trim().toUpperCase(), tp=$('#ncType').value;
       const due=$('#ncDue').value||null;
       if(!nm||!doc||!pl) return toast('Completa nombre, documento y placa');
+      const cvTxt=$('#ncConv').value.trim(); if(cvTxt && !buscarConvenio(cvTxt)) return toast('El código de convenio no es válido o está inactivo');
       const cl = crearClientePortal(doc, nm, ph, em, pl, tp||null);
+      if(cl && cvTxt) aplicarConvenio(cvTxt,cl,null);
       if(cl && due){
         const v = DB.vehicles.find(x=>x.plate===pl);
         if(v) v.due = due;
@@ -2218,11 +2763,12 @@ function renderAdmin(){
   drawVeh(); $('#fVeh').addEventListener('input',drawVeh); $('#fVehT').addEventListener('change',drawVeh);
 
   /* VENCIMIENTOS */
-  const soon=[...DB.vehicles].filter(v=>v.due).sort((a,b)=>daysTo(a.due)-daysTo(b.due));
+  const _vv=vehAmbito();
+  const soon=[..._vv].filter(v=>v.due).sort((a,b)=>daysTo(a.due)-daysTo(b.due));
   $('#avVenc').innerHTML = `
     <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
-      ${kpi('Vencidas',DB.vehicles.filter(v=>v.due&&daysTo(v.due)<0).length,'alert','Requieren contacto inmediato','alert')}
-      ${kpi('RTM vence en 30 días',DB.vehicles.filter(v=>v.due&&daysTo(v.due)>=0&&daysTo(v.due)<=30).length,'bell','Enviar recordatorio','warn')}
+      ${kpi('Vencidas',_vv.filter(v=>v.due&&daysTo(v.due)<0).length,'alert','Requieren contacto inmediato','alert')}
+      ${kpi('RTM vence en 30 días',_vv.filter(v=>v.due&&daysTo(v.due)>=0&&daysTo(v.due)<=30).length,'bell','Enviar recordatorio','warn')}
       ${kpi('Recordatorios activos',DB.reminders.length,'chart',`${conv}% de conversión a cita`)}
     </div>
     ${panelTable('Control de vencimientos','Vehículos ordenados por proximidad de vencimiento.',
@@ -2242,6 +2788,7 @@ function renderAdmin(){
 
   renderAlertas();
   renderPipeline();
+  renderConvenios();
 
   /* CARTERA */
   const carSorted=[...DB.cartera].sort((a,b)=>daysTo(a.due)-daysTo(b.due));
@@ -2327,12 +2874,14 @@ function renderAdmin(){
         <button class="btn btn-p" style="margin-top:16px" id="saveInt">Guardar intervalos</button>
       </div></div>
 
-    <div class="panel"><div class="panel-h"><div><h3>Horarios de atención disponibles</h3><p>Turnos que se ofrecen en el agendamiento en línea.</p></div></div>
+    <div class="panel"><div class="panel-h"><div><h3>Horarios de atención por día</h3><p>Cada día maneja su horario. Los festivos usan el horario de domingo. Los turnos se generan solos a partir de estos horarios.</p></div></div>
       <div class="panel-b">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-          ${DB.config.slots.map(s=>`<span class="pill pill-neu mono">${s}</span>`).join('')}</div>
-        <input class="finput" id="cfgSlots" value="${DB.config.slots.join(', ')}" style="max-width:520px">
-        <button class="btn btn-p" style="margin-top:14px;display:block" id="saveSlots">Actualizar turnos</button>
+        ${[['lv','Lunes a viernes'],['sab','Sábados'],['dom','Domingos y festivos']].map(([k,n])=>`
+        <div class="cfg-row"><div><b>${n}</b><small>${slotsFor(k==='lv'?'2026-11-10':k==='sab'?'2026-11-14':'2026-11-15').length} turnos al día</small></div>
+          <div style="display:flex;gap:8px;align-items:center"><input type="time" class="finput" id="hr_${k}_ini" value="${horarioCfg()[k].ini}"> <span>a</span> <input type="time" class="finput" id="hr_${k}_fin" value="${horarioCfg()[k].fin}"></div></div>`).join('')}
+        <div class="cfg-row"><div><b>Duración de cada turno</b><small>En minutos</small></div>
+          <input type="number" class="finput" id="hr_paso" min="10" max="120" step="5" value="${horarioCfg().paso||40}" style="max-width:110px"></div>
+        <button class="btn btn-p" style="margin-top:14px;display:block" id="saveHorarios">Guardar horarios</button>
       </div></div>
 
     <div class="panel"><div class="panel-h"><div><h3>Usuarios y permisos</h3><p>Control de acceso al portal administrativo.</p></div></div>
@@ -2392,7 +2941,7 @@ function renderAgenda(){
   checkNoShows();
   const days = calView==='dia' ? [new Date(calRef)]
     : Array.from({length:7},(_,i)=>addDays(weekStart(calRef),i));
-  const slots = DB.config.slots;
+  const slots = unionSlots(days);
   const label = calView==='dia'
     ? `${DIAS[days[0].getDay()]} ${days[0].getDate()} de ${MESES[days[0].getMonth()]}`
     : `${days[0].getDate()} – ${days[6].getDate()} de ${MESES[days[6].getMonth()]} ${days[6].getFullYear()}`;
@@ -2401,7 +2950,7 @@ function renderAgenda(){
   const conf = inView.filter(a=>a.status==='Confirmada').length;
   const pnd  = inView.filter(a=>a.status==='Pendiente').length;
   const noShow = inView.filter(a=>a.status==='Inasistente').length;
-  const ocup = slots.length*days.length;
+  const ocup = days.reduce((s,d)=>s+slotsFor(iso(d)).length,0);
 
   let grid = `<div class="cal-grid" style="${calView==='dia'?'grid-template-columns:64px 1fr;min-width:auto':''}">
     <div class="cal-hcell"></div>`;
@@ -2409,21 +2958,24 @@ function renderAgenda(){
     const isT = iso(d)===iso(today);
     grid += `<div class="cal-hcell ${isT?'today':''}"><b>${DIAS[d.getDay()]}</b><span>${d.getDate()}/${d.getMonth()+1}</span></div>`;
   });
-  slots.forEach(t=>{
-    grid += `<div class="cal-tcell">${t}</div>`;
-    days.forEach(d=>{
-      const ds=iso(d);
+  const _cols=days.map(d=>horasDelDia(iso(d),DB.appts)), _nf=Math.max(0,..._cols.map(c=>c.length)), _multi=days.length>1;
+  for(let r=0;r<_nf;r++){
+    grid += `<div class="cal-tcell">${_multi?'':(_cols[0][r]||'')}</div>`;
+    days.forEach((d,ci)=>{
+      const t=_cols[ci][r], ds=iso(d);
+      if(!t){ grid += `<div class="cal-cell cal-closed"></div>`; return; }
       const evs=DB.appts.filter(a=>a.date===ds && a.time===t);
-      grid += `<div class="cal-cell cal-cell-multi">`;
+      const abre=slotsFor(ds).includes(t);
+      grid += `<div class="cal-cell cal-cell-multi${abre?'':' cal-closed'}">${_multi?`<span class="cal-ct">${t}</span>`:''}`;
       evs.forEach(ev=>{
         const cls = ev.status==='Confirmada'?'ok':ev.status==='Pendiente'?'pend':ev.status==='Completada'?'done':ev.status==='Inasistente'?'noshow':'canc';
         const adv = ADVISORS.find(a=>a.id===ev.advisorId);
         grid += `<button class="cal-ev ${cls}" data-apst="${ev.id}">${ev.plate}${ev.confirmedArrival?' ✓':''}<small>${ev.name.split(' ')[0]}${adv?' · '+adv.name.split(' ')[0]:''}</small></button>`;
       });
-      grid += `<button class="cal-free" data-new="${ds}|${t}">+ Agregar</button>`;
+      if(abre) grid += `<button class="cal-free" data-new="${ds}|${t}">+ Agregar</button>`;
       grid += `</div>`;
     });
-  });
+  }
   grid += `</div>`;
 
   $('#avAgenda').innerHTML = `
@@ -2485,20 +3037,24 @@ function renderAgenda(){
       </div>
       <div class="fgrid" style="margin-top:14px">
         <div><label class="flabel">Origen</label><select id="nwSrc" class="finput"><option>Llamada</option><option>WhatsApp</option><option>Presencial</option></select></div>
-        <div><label class="flabel">Asesor (para comisión)</label><select id="nwAdv" class="finput"><option value="">Sin asignar</option>${ADVISORS.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
+        ${convField('nwConv')}
+        <div><label class="flabel">Asesor (para comisión)</label><select id="nwAdv" class="finput" ${esAsesor()?'disabled':''}><option value="">Sin asignar</option>${ADVISORS.map(a=>`<option value="${a.id}" ${a.id===miAsesorId()?'selected':''}>${a.name}</option>`).join('')}</select></div>
       </div>`,
       `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="nwSave">Registrar cita</button>`);
+    bindConvField('nwConv');
     $('#nwSave').addEventListener('click',()=>{
       const nm=$('#nwName').value.trim(), ph=$('#nwPhone').value.trim(), pl=$('#nwPlate').value.trim().toUpperCase(), doc=$('#nwDoc').value.trim();
       if(nm.length<3||!/^\d{10}$/.test(ph)||!pl) return toast('Completa nombre, celular de 10 dígitos y placa');
       if(!/^\d{6,12}$/.test(doc)) return toast('Escribe la cédula (solo números): será su usuario y contraseña del portal');
+      const cvTxt=$('#nwConv').value.trim(); if(cvTxt && !buscarConvenio(cvTxt)) return toast('El código de convenio no es válido o está inactivo');
       let cl=DB.clients.find(c=>c.doc===doc)||DB.clients.find(c=>c.phone===ph);
-      if(!cl){ cl={id:uid('c'),doc,name:nm,phone:ph,email:'',notes:'Registrado desde la agenda.'}; DB.clients.push(cl); }
+      if(!cl){ cl={id:uid('c'),doc,name:nm,phone:ph,email:'',notes:'Registrado desde la agenda.',creado:iso(today)}; if(esAsesor()){cl.ownerAdvisorId=miAsesorId();cl.creadoPor=miAsesorId();} DB.clients.push(cl); }
       else if(!cl.doc) cl.doc=doc;
       if(!vehByPlate(pl)) DB.vehicles.push({id:uid('v'),plate:pl,type:$('#nwType').value,cat:vLabel($('#nwType').value),clientId:cl.id,due:null});
-      DB.appts.push({id:uid('a'),clientId:cl.id,plate:pl,name:nm,phone:ph,email:'',
+      const _apN={id:uid('a'),clientId:cl.id,plate:pl,name:nm,phone:ph,email:'',
         type:$('#nwType').value,date:d,time:t,status:'Confirmada',source:$('#nwSrc').value,
-        advisorId:$('#nwAdv').value||null,confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:false});
+        advisorId:esAsesor()?miAsesorId():($('#nwAdv').value||null),creadaPor:miAsesorId()||null,creado:iso(today),confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:false};
+      aplicarConvenio(cvTxt,cl,_apN); DB.appts.push(_apN);
       logAct(`Cita registrada desde la agenda · ${pl} · ${fmtDate(d)} ${t}`);
       trackAction('crear-cita');
       closeModal(); renderAdmin(); toast('Cita creada');
@@ -2517,9 +3073,9 @@ function openApt(id){
      ${a.status==='Inasistente'?'<div class="alertbar dan" style="margin-bottom:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><div><b>Cita inasistida</b><p>Puedes reprogramarla con una nueva fecha y hora sin perder los datos del cliente.</p></div></div>':''}
      <div class="fgrid">
        <div><label class="flabel">Estado</label><select id="stSel" class="finput">${['Pendiente','Confirmada','Insistido','Completada','Inasistente','Cancelada'].map(x=>`<option ${x===a.status?'selected':''}>${x}</option>`).join('')}</select></div>
-       <div><label class="flabel">Asesor asignado</label><select id="stAdv" class="finput"><option value="">Sin asignar</option>${ADVISORS.map(x=>`<option value="${x.id}" ${x.id===a.advisorId?'selected':''}>${x.name}</option>`).join('')}</select></div>
+       <div><label class="flabel">Asesor asignado</label><select id="stAdv" class="finput" ${esAsesor()?'disabled':''}><option value="">Sin asignar</option>${ADVISORS.map(x=>`<option value="${x.id}" ${x.id===a.advisorId?'selected':''}>${x.name}</option>`).join('')}</select></div>
        <div><label class="flabel">Fecha</label><input type="date" id="stDate" class="finput" value="${a.date}"></div>
-       <div><label class="flabel">Hora</label><select id="stTime" class="finput">${DB.config.slots.map(x=>`<option ${x===a.time?'selected':''}>${x}</option>`).join('')}</select></div>
+       <div><label class="flabel">Hora</label><select id="stTime" class="finput">${slotOpts(a.date,a.time)}</select></div>
      </div>
      <label class="fchk" style="margin-top:14px"><input type="checkbox" id="stArr" ${a.confirmedArrival?'checked':''}><span>El cliente ya llegó al centro (confirmar llegada)</span></label>
      <label class="fchk" style="margin-top:8px"><input type="checkbox" id="stContact" ${a.contacted?'checked':''}><span>Ya se hizo contacto de seguimiento con el cliente</span></label>`,
@@ -2527,15 +3083,16 @@ function openApt(id){
      <a class="btn btn-o" href="tel:${a.phone}">Llamar</a>
      <button class="btn btn-o" id="stDel" style="color:var(--danger);border-color:var(--danger)">Eliminar</button>
      <button class="btn btn-p" id="stSave">Guardar</button>`);
+  $('#stDate').addEventListener('change',()=>{ $('#stTime').innerHTML=slotOpts($('#stDate').value,$('#stTime').value); });
   $('#stSave').addEventListener('click',()=>{
     a.status=$('#stSel').value; a.date=$('#stDate').value; a.time=$('#stTime').value;
-    a.advisorId=$('#stAdv').value||null; a.confirmedArrival=$('#stArr').checked; a.contacted=$('#stContact').checked;
+    if(!esAsesor()) a.advisorId=$('#stAdv').value||null; a.confirmedArrival=$('#stArr').checked; a.contacted=$('#stContact').checked;
     if(a.status==='Inasistente'){ a.notifiedAfter=true; }
     else { a.notifiedBefore=false; a.notifiedAfter=false; }
     if(a.status==='Completada'){
       const v=vehByPlate(a.plate);
       if(v && !DB.revisions.some(r=>r.vehicleId===v.id && r.date===a.date)){
-        DB.revisions.push({id:uid('r'),vehicleId:v.id,date:a.date,result:'Aprobada',notes:'Registrada desde la agenda.'});
+        DB.revisions.push({id:uid('r'),vehicleId:v.id,date:a.date,result:'Aprobada',notes:'Registrada desde la agenda.',advisorId:a.advisorId||null,convenioId:a.convenioId||null});
         v.due=iso(addDays(new Date(a.date+'T00:00:00'),365));
       }
       a.confirmedArrival=true;
@@ -2561,18 +3118,19 @@ function openApt(id){
 
 /* ---------- ARQUEO DIARIO (comisiones + asistencia) ---------- */
 function computeArqueo(dateStr){
-  const dayAppts = DB.appts.filter(a=>a.date===dateStr && a.status!=='Cancelada');
-  const rows = ADVISORS.map(adv=>{
+  const dayAppts = DB.appts.filter(a=>a.date===dateStr && a.status!=='Cancelada' && (!esAsesor()||a.advisorId===miAsesorId()));
+  const rows = (esAsesor()?ADVISORS.filter(a=>a.id===miAsesorId()):ADVISORS).map(adv=>{
     const mine = dayAppts.filter(a=>a.advisorId===adv.id);
     const asistio = mine.filter(a=>a.confirmedArrival || a.status==='Completada');
     const noAsistio = mine.filter(a=>!a.confirmedArrival && a.status!=='Completada');
     return {adv, total:mine.length, asistio:asistio.length, noAsistio:noAsistio.length,
       comision: asistio.length*DB.config.comisionPorCita};
   });
-  const sinAsesor = dayAppts.filter(a=>!a.advisorId);
+  const sinAsesor = esAsesor()?[]:dayAppts.filter(a=>!a.advisorId);
   return {rows, sinAsesor, totalComision: rows.reduce((s,r)=>s+r.comision,0), dayAppts};
 }
-function openArqueoDiario(){
+function openArqueoDiario(){ return conAlcance(_openArqueoDiario); }
+function _openArqueoDiario(){
   const d = iso(today);
   const {rows, sinAsesor, totalComision} = computeArqueo(d);
   modal(`Arqueo diario · ${fmtDate(d)}`,`
@@ -2589,7 +3147,8 @@ function openArqueoDiario(){
   $('#arqPdf').addEventListener('click',()=>{ closeModal(); printArqueoPDF(d); });
   $$('[data-mclose]').forEach(x=>x.addEventListener('click',closeModal));
 }
-function printArqueoPDF(dateStr){
+function printArqueoPDF(dateStr){ return conAlcance(()=>_printArqueoPDF(dateStr)); }
+function _printArqueoPDF(dateStr){
   const {rows, totalComision, dayAppts} = computeArqueo(dateStr);
   const asistieron = dayAppts.filter(a=>a.confirmedArrival||a.status==='Completada').length;
   const noAsistieron = dayAppts.length - asistieron;
@@ -2652,7 +3211,7 @@ function bindIntg(){
 
 /* ---------- GENERADOR DE DOCUMENTOS PDF CON MARCA CDA ---------- */
 const DOC_PREFIX = {general:'IG', finanzas:'IF', creditos:'IC', equipo:'IE',
-  comisiones:'AC', agenda:'IA', preventivas:'IP', vencimientos:'IV', clientes:'IB', arqueo:'AQ'};
+  comisiones:'AC', convenios:'CV', 'convenios-dia':'AV', agenda:'IA', preventivas:'IP', vencimientos:'IV', clientes:'IB', arqueo:'AQ'};
 let docSeq = 1;
 function docRef(tipo){
   const d=new Date();
@@ -2730,7 +3289,8 @@ function barChart(rows,max){
     <span class="bar-val">${r.txt||r.v}</span></div>`).join('')}</div>`;
 }
 
-function generarInformePDF(tipo){
+function generarInformePDF(tipo){ return conAlcance(()=>_generarInformePDF(tipo)); }
+function _generarInformePDF(tipo){
   const ref=docRef(tipo);
   const hoy=iso(today);
   const maxM=Math.max(...DB.monthly,1);
@@ -2745,7 +3305,7 @@ function generarInformePDF(tipo){
       secciones:[
         `<div class="note"><b>Regla de comisión vigente:</b> ${COP(DB.config.comisionPorCita)} por vehículo, aplicable únicamente a partir del vehículo N° ${DB.config.metaMensualVehiculos} del mes. Los contadores se reinician el día 1 de cada mes.</div>`,
         `<h2>Detalle por asesor</h2><table><thead><tr><th>Asesor</th><th class="num">Mes acumulado</th><th class="num">Meta</th><th>Estado</th><th class="num">Comisión</th></tr></thead><tbody>
-          ${ADVISORS.map(a=>{const st=advisorMonthStats(a.id);
+          ${advsAlcance().map(a=>{const st=advisorMonthStats(a.id);
             return `<tr><td>${a.name}</td><td class="num">${st.total}</td><td class="num">${st.meta}</td>
               <td>${st.metaAlcanzada?'<span style="color:#1D6132;font-weight:700">✔ Meta cumplida — ya comisiona</span>':'En progreso — aún no comisiona'}</td>
               <td class="num ${st.metaAlcanzada?'win-val':''}">${COP(st.comision)}</td></tr>`;}).join('')}
@@ -2806,7 +3366,7 @@ function generarInformePDF(tipo){
         barChart(ADVISORS.map(a=>{const st=advisorMonthStats(a.id);
           return {l:a.name.split(' ')[0],v:st.total,txt:`${st.total}/${st.meta}`,color:st.metaAlcanzada?'#1D6132':'#FAC800'};}),DB.config.metaMensualVehiculos),
         `<table><thead><tr><th>Asesor</th><th class="num">Atendidos</th><th class="num">Meta</th><th>Estado</th><th class="num">Comisión</th></tr></thead><tbody>
-          ${ADVISORS.map(a=>{const st=advisorMonthStats(a.id);
+          ${advsAlcance().map(a=>{const st=advisorMonthStats(a.id);
             return `<tr><td>${a.name}</td><td class="num">${st.total}</td><td class="num">${st.meta}</td>
               <td>${st.metaAlcanzada?'<span style="color:#1D6132;font-weight:700">✔ Comisionando</span>':'Sin comisión aún'}</td>
               <td class="num ${st.metaAlcanzada?'win-val':''}">${COP(st.comision)}</td></tr>`;}).join('')}
@@ -2872,6 +3432,40 @@ function generarInformePDF(tipo){
             :'<tr><td colspan="4">Sin movimientos registrados.</td></tr>'}
         </tbody></table>`]};
   }
+  if(tipo==='convenios-dia'){
+    const hoy=iso(today), man=iso(addDays(today,1));
+    const filas=conveniosVisibles().map(c=>{
+      const cli=DB.clients.filter(x=>x.convenioId===c.id && (x.convenioDesde===hoy||x.creado===hoy));
+      const cre=DB.appts.filter(a=>a.convenioId===c.id && a.creado===hoy && a.status!=='Cancelada');
+      const asi=DB.appts.filter(a=>a.convenioId===c.id && a.date===hoy && (a.confirmedArrival||a.status==='Completada'));
+      const man_=DB.appts.filter(a=>a.convenioId===c.id && a.date===man && a.status!=='Cancelada').sort((a,b)=>a.time<b.time?-1:1);
+      return {c,cli,cre,asi,man:man_};
+    });
+    const mov=filas.filter(f=>f.cli.length||f.cre.length||f.asi.length||f.man.length);
+    const tot=k=>filas.reduce((s,f)=>s+f[k].length,0);
+    const citasMan=filas.flatMap(f=>f.man.map(a=>({a,c:f.c})));
+    cfg={titulo:'Arqueo diario de convenios', subtitulo:`${fmtDate(hoy)}${esAsesor()?' · '+advNombre(miAsesorId()):''}`, ref,
+      kpis:[{l:'Convenios con movimiento',v:mov.length},{l:'Clientes nuevos hoy',v:tot('cli'),win:true},{l:'Citas creadas hoy',v:tot('cre')},{l:'Citas para mañana',v:tot('man')}],
+      secciones:[`<h2>Movimiento de hoy por convenio</h2><table><thead><tr><th>Código</th><th>Empresa</th><th>Asesor</th><th class="num">Clientes nuevos</th><th class="num">Citas creadas</th><th class="num">Asistieron hoy</th><th class="num">Citas mañana</th></tr></thead><tbody>
+        ${mov.length?mov.map(f=>`<tr><td><b>${f.c.codigo}</b></td><td>${f.c.empresa.razon}</td><td>${advNombre(f.c.advisorId)||'Directo CDA'}</td><td class="num">${f.cli.length}</td><td class="num">${f.cre.length}</td><td class="num">${f.asi.length}</td><td class="num">${f.man.length}</td></tr>`).join(''):'<tr><td colspan="7">Hoy no hubo movimiento en los convenios.</td></tr>'}
+        ${mov.length?`<tr class="tot"><td colspan="3">Total del día</td><td class="num">${tot('cli')}</td><td class="num">${tot('cre')}</td><td class="num">${tot('asi')}</td><td class="num">${tot('man')}</td></tr>`:''}
+      </tbody></table>`,
+      `<h2>Citas de convenios para mañana · ${fmtDate(man)}</h2><table><thead><tr><th>Hora</th><th>Placa</th><th>Cliente</th><th>Celular</th><th>Convenio</th><th>Asesor</th></tr></thead><tbody>
+        ${citasMan.length?citasMan.sort((x,y)=>x.a.time<y.a.time?-1:1).map(({a,c})=>`<tr><td>${a.time}</td><td><b>${a.plate}</b></td><td>${a.name}</td><td>${a.phone||''}</td><td>${c.codigo} · ${c.empresa.razon}</td><td>${advNombre(a.advisorId)||'—'}</td></tr>`).join(''):'<tr><td colspan="6">No hay citas de convenios para mañana.</td></tr>'}
+      </tbody></table>`,
+      `<div class="note"><b>Clientes nuevos:</b> los que quedaron vinculados a un convenio hoy. <b>Citas creadas:</b> las registradas hoy con código de convenio, para cualquier fecha.</div>`]};
+  }
+  if(tipo==='convenios'){
+    const l=conveniosVisibles(), st=l.map(c=>({c,s:statsConvenio(c)}));
+    const tot=k=>st.reduce((s,x)=>s+x.s[k],0);
+    cfg={titulo:'Informe de convenios', subtitulo:esAsesor()?`Convenios de ${advNombre(miAsesorId())}`:'Empresas aliadas y revisiones por convenio', ref,
+      kpis:[{l:'Convenios activos',v:l.filter(convenioActivo).length},{l:'Clientes en convenio',v:tot('clientes')},
+            {l:'Revisiones',v:tot('revisiones'),win:true},{l:'Revisiones del mes',v:tot('mes')}],
+      secciones:[`<h2>Detalle por convenio</h2><table><thead><tr><th>Código</th><th>Empresa</th><th>Representante legal</th><th>Asesor</th><th class="num">Clientes</th><th class="num">Revisiones</th><th class="num">Mes</th></tr></thead><tbody>
+        ${st.length?st.map(({c,s})=>`<tr><td><b>${c.codigo}</b></td><td>${c.empresa.razon}<br><small>NIT ${c.empresa.nit}</small></td><td>${c.rep.nombre}<br><small>${c.rep.telefono}</small></td><td>${advNombre(c.advisorId)||'Directo CDA'}</td><td class="num">${s.clientes}</td><td class="num">${s.revisiones}</td><td class="num">${s.mes}</td></tr>`).join(''):'<tr><td colspan="7">Aún no hay convenios.</td></tr>'}
+      </tbody></table>`,
+      `<div class="note"><b>Cómo se cuenta:</b> cada revisión asistida con el código del convenio se suma al asesor que lo creó.</div>`]};
+  }
   logAct(`Informe generado · ${cfg.titulo} · ${ref}`);
   trackAction('generar-informe');
   openDoc(docShell(cfg));
@@ -2885,6 +3479,8 @@ const REPORTS = [
   {id:'creditos',  t:'Cartera de créditos',         d:'Dinero en trámite por entidad y desembolsos.',                roles:['superusuario','superadministrador'], nivel:'Gerencial'},
   {id:'equipo',    t:'Desempeño del equipo',        d:'Productividad por asesor y cumplimiento de meta.',            roles:['superusuario','superadministrador'], nivel:'Gerencial'},
   {id:'comisiones',t:'Arqueo de comisiones',        d:'Citas asistidas y comisión del periodo.',                     roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
+  {id:'convenios-dia', t:'Arqueo diario de convenios', d:'Clientes que generó cada convenio hoy y citas para mañana.', roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
+  {id:'convenios', t:'Informe de convenios',        d:'Convenios, asesor responsable y revisiones por empresa.',     roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
   {id:'agenda',    t:'Informe de agenda',           d:'Citas agendadas, asistencias e inasistencias.',               roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
   {id:'preventivas',t:'Bonos preventivos',          d:'Bonos emitidos, redimidos y pendientes.',                     roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
   {id:'vencimientos',t:'Próximos vencimientos',     d:'Vehículos por vencer, para gestión comercial.',               roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
@@ -2962,6 +3558,7 @@ function renderGerencia(){
       ${kpi('Conversión de recordatorios',conv+'%','bell','Agendaron y vinieron')}
       ${kpi('Vencen en 30 días',DB.vehicles.filter(v=>v.due&&daysTo(v.due)>=0&&daysTo(v.due)<=30).length,'clock','Oportunidad comercial','warn')}
     </div>
+    ${kpisConvenios()}
 
     <div class="panel"><div class="panel-h"><div><h3>Desempeño por asesor</h3><p>Mes en curso · meta ${DB.config.metaMensualVehiculos} vehículos</p></div></div>
       <div class="panel-b">${ADVISORS.map(a=>{
@@ -3076,21 +3673,25 @@ function renderPreventivas(){
   const redimidos=bonos.filter(m=>m.giftClaimed).length;
   const prevAppts=DB.appts.filter(a=>a.tipoServicio==='preventiva');
   const days=Array.from({length:7},(_,i)=>addDays(weekStart(prevRef),i));
-  const slots=DB.config.slots;
+  const slots=unionSlots(days);
 
   let grid=`<div class="cal-grid"><div class="cal-hcell"></div>`;
   days.forEach(d=>{const t=iso(d)===iso(today);
     grid+=`<div class="cal-hcell ${t?'today':''}"><b>${DIAS[d.getDay()]}</b><span>${d.getDate()}/${d.getMonth()+1}</span></div>`;});
-  slots.forEach(tm=>{
-    grid+=`<div class="cal-tcell">${tm}</div>`;
-    days.forEach(d=>{
-      const ds=iso(d);
+  const _pc=days.map(d=>horasDelDia(iso(d),prevAppts)), _pn=Math.max(0,..._pc.map(c=>c.length));
+  for(let r=0;r<_pn;r++){
+    grid+=`<div class="cal-tcell"></div>`;
+    days.forEach((d,ci)=>{
+      const tm=_pc[ci][r], ds=iso(d);
+      if(!tm){ grid+=`<div class="cal-cell cal-closed"></div>`; return; }
       const evs=prevAppts.filter(a=>a.date===ds&&a.time===tm);
-      grid+=`<div class="cal-cell cal-cell-multi">`;
+      const abre=slotsFor(ds).includes(tm);
+      grid+=`<div class="cal-cell cal-cell-multi${abre?'':' cal-closed'}"><span class="cal-ct">${tm}</span>`;
       evs.forEach(ev=>{grid+=`<button class="cal-ev prev-ev" data-apst="${ev.id}">🎁 ${ev.plate}<small>${ev.name.split(' ')[0]}</small></button>`;});
-      grid+=`<button class="cal-free" data-newprev="${ds}|${tm}">+ Preventiva</button></div>`;
+      if(abre) grid+=`<button class="cal-free" data-newprev="${ds}|${tm}">+ Preventiva</button>`;
+      grid+=`</div>`;
     });
-  });
+  }
   grid+=`</div>`;
 
   el.innerHTML=`
@@ -3154,7 +3755,8 @@ function nuevaPreventiva(d,t){
       <div><label class="flabel">Celular</label><input id="pvPhone" class="finput" inputmode="tel"></div>
       <div><label class="flabel">Cédula</label><input id="pvDoc" class="finput" inputmode="numeric" placeholder="Usuario y contraseña del portal"></div>
       <div><label class="flabel">Placa</label><input id="pvPlate" class="finput mono" style="text-transform:uppercase"></div>
-      <div><label class="flabel">Asesor</label><select id="pvAdv" class="finput"><option value="">Sin asignar</option>${ADVISORS.map(a=>`<option value="${a.id}" ${currentUser&&currentUser.advisorId===a.id?'selected':''}>${a.name}</option>`).join('')}</select></div>
+      ${convField('pvConv')}
+      <div><label class="flabel">Asesor</label><select id="pvAdv" class="finput" ${esAsesor()?'disabled':''}><option value="">Sin asignar</option>${ADVISORS.map(a=>`<option value="${a.id}" ${currentUser&&currentUser.advisorId===a.id?'selected':''}>${a.name}</option>`).join('')}</select></div>
     </div>`,
     `<button class="btn btn-o" data-mclose>Cancelar</button><button class="btn btn-p" id="pvSave">Agendar preventiva</button>`);
   // Autocompletar si el código existe
@@ -3165,19 +3767,22 @@ function nuevaPreventiva(d,t){
       setFieldState(e.target,true); toast('🎁 Bono encontrado · datos cargados'); }
     else if(code.length>=8) setFieldState(e.target,false,'No encontramos ese bono.');
   });
+  bindConvField('pvConv');
   $('#pvSave').addEventListener('click',()=>{
     const nm=$('#pvName').value.trim(), ph=$('#pvPhone').value.trim(), pl=$('#pvPlate').value.trim().toUpperCase(), doc=$('#pvDoc').value.trim();
     if(nm.length<3||!ph||!pl) return toast('Completa nombre, celular y placa');
     if(!/^\d{6,12}$/.test(doc)) return toast('Escribe la cédula (solo números): será su usuario y contraseña del portal');
+    const cvTxt=$('#pvConv').value.trim(); if(cvTxt && !buscarConvenio(cvTxt)) return toast('El código de convenio no es válido o está inactivo');
     let cl=DB.clients.find(c=>c.doc===doc)||DB.clients.find(c=>c.phone===ph);
-    if(!cl){cl={id:uid('c'),doc,name:nm,phone:ph,email:'',notes:'Registrado desde preventivas.'};DB.clients.push(cl);}
+    if(!cl){cl={id:uid('c'),doc,name:nm,phone:ph,email:'',notes:'Registrado desde preventivas.',creado:iso(today)};if(esAsesor()){cl.ownerAdvisorId=miAsesorId();cl.creadoPor=miAsesorId();}DB.clients.push(cl);}
     else if(!cl.doc) cl.doc=doc;
     const det=detectVehicleByPlate(pl);
     if(!vehByPlate(pl)) DB.vehicles.push({id:uid('v'),plate:pl,type:det?det.sub:'automovil',cat:vLabel(det?det.sub:'automovil'),clientId:cl.id,due:null});
-    DB.appts.push({id:uid('a'),clientId:cl.id,plate:pl,name:nm,phone:ph,email:'',
+    const _apP={id:uid('a'),clientId:cl.id,plate:pl,name:nm,phone:ph,email:'',
       type:det?det.sub:'automovil',date:d,time:t,status:'Confirmada',source:'Preventiva',
       tipoServicio:'preventiva', code:genCode('CIT'),
-      advisorId:$('#pvAdv').value||null,confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:false});
+      advisorId:esAsesor()?miAsesorId():($('#pvAdv').value||null),creadaPor:miAsesorId()||null,creado:iso(today),confirmedArrival:false,notifiedBefore:false,notifiedAfter:false,contacted:false};
+    aplicarConvenio(cvTxt,cl,_apP); DB.appts.push(_apP);
     const bono=buscarBono($('#pvCode').value);
     if(bono){ bono.converted=true; }
     logAct(`Preventiva agendada · ${pl} · ${fmtDate(d)} ${t}`);
@@ -3465,7 +4070,7 @@ function renderUsuarios(){
     <div class="panel"><div class="panel-h"><div><h3>Perfiles de asesor</h3><p>Meta ${DB.config.metaMensualVehiculos} vehículos · comisión ${COP(DB.config.comisionPorCita)} por vehículo sobre la meta</p></div></div>
       <div class="panel-b flush"><div class="tw"><table>
         <thead><tr><th>Asesor</th><th>Celular</th><th class="num">Mes actual</th><th>Estado meta</th><th class="num">Comisión</th></tr></thead>
-        <tbody>${ADVISORS.map(a=>{const st=advisorMonthStats(a.id);
+        <tbody>${advsAlcance().map(a=>{const st=advisorMonthStats(a.id);
           return `<tr><td><b>${a.name}</b></td><td class="num">${a.phone}</td><td class="num">${st.total}/${st.meta}</td>
             <td>${st.metaAlcanzada?'<span class="pill pill-ok">Comisionando</span>':'<span class="pill pill-warn">En progreso</span>'}</td>
             <td class="num">${COP(st.comision)}</td></tr>`;}).join('')}
@@ -3737,6 +4342,7 @@ const ICONS={
   chart:'<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>',
   bell:'<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'
 };
+Object.assign(ICONS,{check:'<path d="M20 6 9 17l-5-5"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1"/>',briefcase:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M3 13h18"/>'});
 function kpi(label,val,ico,desc,cls=''){
   return `<div class="kpi ${cls}">
     <div class="kpi-t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">${ICONS[ico]||''}</svg>${label}</div>
@@ -3779,7 +4385,7 @@ function drawCitas(){
     <td><b>${fmtDate(a.date)}</b></td><td class="num">${a.time}</td>
     <td><button class="lnkcli" data-cliv="${a.clientId}" title="Ver ficha del cliente"><b>${a.name}</b><small>${a.phone}</small></button></td>
     <td><span class="plate">${a.plate}</span></td>
-    <td>${a.type==='moto'?'Moto':'Carro'}</td><td><small style="margin:0">${a.source}</small></td>
+    <td>${a.type==='moto'?'Moto':'Carro'}</td><td><small style="margin:0">${a.source}</small>${a.advisorId?advTag(a.advisorId):''}${a.creadaPor&&a.creadaPor!==a.advisorId?advTag(a.creadaPor,'Creó'):''}${a.convenioCodigo?`<span class="adv-tag conv-tag">🤝 ${a.convenioCodigo}</span>`:''}</td>
     <td>${apStatus(a.status)}</td>
     <td class="tact">
       <button class="iconbtn" data-cliv="${a.clientId}" title="Ver ficha del cliente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1"/></svg></button>
@@ -3817,7 +4423,7 @@ function drawCli(){
     const hasMora=DB.cartera.some(k=>k.clientId===c.id&&k.status==='Vencida');
     const f=DB.credits.filter(x=>x.clientId===c.id);
     return `<tr>
-      <td><b>${c.name}</b>${c.notes?`<small>${c.notes}</small>`:''}</td>
+      <td><b>${c.name}</b>${c.notes?`<small>${c.notes}</small>`:''}${c.ownerAdvisorId?advTag(c.ownerAdvisorId):''}${c.convenioCodigo?`<span class="adv-tag conv-tag">🤝 ${c.convenioCodigo}</span>`:''}</td>
       <td class="num">${c.doc}</td>
       <td class="num">${c.phone}<small style="margin:0">${c.email||'Sin correo'}</small></td>
       <td>${vs.map(v=>`<span class="plate" style="margin:1px">${v.plate}</span>`).join(' ')||'—'}</td>
@@ -3839,7 +4445,9 @@ function openCli(id){
   modal(c.name,`
     <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px">
       <span class="pill pill-neu">C.C. ${c.doc}</span><span class="pill pill-neu">${c.phone}</span>
+      ${c.ownerAdvisorId?advTag(c.ownerAdvisorId,'Cliente de'):''}
       ${c.email?`<span class="pill pill-neu">${c.email}</span>`:''}</div>
+    ${c.convenioId?(()=>{ const cv=convenioPorId(c.convenioId); const n=DB.appts.filter(a=>a.convenioId===c.convenioId&&a.clientId===c.id&&(a.confirmedArrival||a.status==='Completada')).length; return `<div class="note-box" style="margin-bottom:16px;background:#EAF6EC;border-color:#BFE3C4"><b>🤝 Pertenece al convenio ${c.convenioCodigo||''}</b>${(cv&&cv.empresa.razon)||c.convenioEmpresa||''}${cv&&cv.advisorId?' · Asesor: '+advNombre(cv.advisorId):''} · ${n} revisión(es) por este convenio</div>`; })():''}
     ${c.notes?`<div class="note-box" style="margin-bottom:16px"><b>Observaciones internas</b>${c.notes}</div>`:''}
     <h4 style="font-family:'Plus Jakarta Sans';font-size:.9rem;margin-bottom:9px">Vehículos (${vs.length})</h4>
     ${vs.map(v=>`<div class="vrow"><span><span class="plate">${v.plate}</span> ${v.cat}</span><span>${v.due?fmtDate(v.due):'Sin vencimiento'} ${dueBadge(v.due)}</span></div>`).join('')||'<p style="font-size:.85rem;color:var(--ink-3)">Sin vehículos.</p>'}
@@ -3999,11 +4607,18 @@ function bindCfg(){
     logAct('Intervalos de recordatorio actualizados');
     toast('Intervalos actualizados');
   });
-  $('#saveSlots')?.addEventListener('click',()=>{
-    const v=$('#cfgSlots').value.split(',').map(x=>x.trim()).filter(x=>/^\d{1,2}:\d{2}$/.test(x));
-    if(!v.length) return toast('Formato inválido. Usa HH:MM separados por coma');
-    DB.config.slots=v; renderSlots(); logAct('Turnos de agendamiento actualizados');
-    renderAdmin(); toast('Turnos actualizados');
+  $('#saveHorarios')?.addEventListener('click',()=>{
+    const h={paso:parseInt($('#hr_paso').value,10)||40};
+    for(const k of ['lv','sab','dom']){
+      const a=$('#hr_'+k+'_ini').value, b=$('#hr_'+k+'_fin').value;
+      if(!a||!b||_toMin(b)<=_toMin(a)) return toast('Revisa el horario: la hora de cierre debe ser después de la apertura');
+      h[k]={ini:a,fin:b};
+    }
+    if(h.paso<10||h.paso>120) return toast('La duración del turno debe estar entre 10 y 120 minutos');
+    DB.config.horarioSemana=h;
+    DB.config.slots=genSlots(h.dom.ini,h.dom.fin,h.paso);   // compatibilidad
+    applyHorarios(); if(typeof bk!=='undefined'&&bk.date) renderSlots();
+    logAct('Horarios de atención por día actualizados'); renderAdmin(); toast('Horarios guardados');
   });
 }
 
@@ -4063,24 +4678,26 @@ const EXPORTS={
   }
 };
 function bindExports(){
+  if(!EXPORTS.convenios) EXPORTS.convenios=exportConvenios;
   $$('[data-exp]').forEach(b=>{
     if(b.dataset.expBound) return; b.dataset.expBound='1';
     b.addEventListener('click',()=>{
       const k=b.dataset.exp, f=EXPORTS[k];
       if(!f) return;
-      download(`cda-revitolima-${k}-${iso(today)}.csv`, csv(f()));
+      download(`cda-revitolima-${k}-${iso(today)}.csv`, csv(conAlcance(f)));
       logAct(`Exportación descargada · ${k}`);
       toast(`Archivo de ${k} descargado`);
     });
   });
 }
 $('#admExportTop').addEventListener('click',()=>{
-  download(`cda-revitolima-indicadores-${iso(today)}.csv`, csv(EXPORTS.indicadores()));
+  download(`cda-revitolima-indicadores-${iso(today)}.csv`, csv(conAlcance(EXPORTS.indicadores)));
   toast('Indicadores exportados');
 });
 
 /* ---------- INIT ---------- */
 syncPublic();
+applyHorarios();
 bkShow(1);
 refreshBadges();
 bindExports();
@@ -4090,7 +4707,7 @@ function applyPublicConfig(){
     $('#remIntervals').textContent = DB.config.intervalos.join(', ')+' días antes';
     $('#addrPub').textContent = DB.config.direccion;
     const bm=$('#btnMaps'); if(bm) bm.href = DB.config.mapsUrl;
-    renderStrip(); renderHorarios(); renderFaq();
+    renderStrip(); renderHorarios(); renderFaq(); applyHorarios();
     if(bk && bk.date) renderSlots();
   }catch(e){ console.warn(e); }
 }

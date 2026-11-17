@@ -7,4 +7,4 @@ Disallow: /admin.html
 Disallow: /cliente
 Disallow: /cliente.html
 
-Sitemap: https://cdarevitolima.co/sitemap.xml
+Sitemap: https://www.cdarevitolima.co/sitemap.xml

@@ -1643,3 +1643,52 @@ td small{display:block;color:var(--ink-3);font-size:.76rem;margin-top:1px}
   .hrow{flex-direction:row;justify-content:space-between;align-items:center}
   .hrow .htime::after{display:block;width:fit-content;margin:4px 0 0}
 }
+
+
+/* Celdas fuera del horario de atención del día */
+.cal-closed{background:repeating-linear-gradient(45deg,#F4F2EA,#F4F2EA 6px,#EDEADF 6px,#EDEADF 12px)!important;opacity:.85}
+.cal-closed .cal-free{display:none}
+
+
+/* Etiquetas de asesor / convenio */
+.adv-tag{display:inline-block;background:#FFF6E0;color:#7A5A00;border:1px solid #F0DFB0;border-radius:100px;
+  padding:1px 9px;font-size:.68rem;font-weight:700;margin:3px 4px 0 0;white-space:nowrap}
+.adv-tag.conv-tag{background:#EAF6EC;color:#164A26;border-color:#BFE3C4}
+
+
+/* ═══ Convenios ═══ */
+.conv-code{font-family:'IBM Plex Mono',monospace;font-weight:800;font-size:.95rem;background:#EAF6EC;color:#164A26;
+  padding:4px 10px;border-radius:8px;border:1px solid #BFE3C4;white-space:nowrap}
+.conv-codebox{background:linear-gradient(135deg,var(--green-900),var(--green-800));color:#fff;border-radius:14px;
+  padding:14px 18px;margin-bottom:6px;display:flex;flex-direction:column;gap:3px}
+.conv-codebox span{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.7)}
+.conv-codebox b{font-family:'IBM Plex Mono',monospace;font-size:1.9rem;letter-spacing:.06em;color:var(--lime,#C9F04A)}
+.conv-codebox small{font-size:.78rem;color:rgba(255,255,255,.78)}
+.conv-codebox.big b{font-size:2.6rem}
+.cv-h{font-size:.8rem;font-weight:800;color:var(--green-700);text-transform:uppercase;letter-spacing:.07em;margin:16px 0 8px}
+
+.cal-ct{display:block;font-size:.64rem;font-weight:800;color:var(--ink-3);letter-spacing:.03em;margin-bottom:3px;font-family:'IBM Plex Mono',monospace}
+.cal-closed .cal-ct{opacity:.6}
+
+
+/* ═══ Pipeline: inasistidas (rojo) y por reagendar ═══ */
+.kb-col-red .kb-head{background:#FDECEA!important;border-color:#F5C2BC!important}
+.kb-col-red .kb-head b{color:#B03A2E}
+.kb-col-red .kb-count{background:#C0392B!important;color:#fff!important}
+.kb-col-red .kb-card{border-left:4px solid #C0392B}
+.kb-col-next .kb-head{background:#EAF6EC!important}
+.kb-col-next .kb-card{border-left:4px solid #46B446}
+/* ═══ Imagen de convenio ═══ */
+.conv-img-wrap{display:flex;justify-content:center;background:#F4F2EA;border-radius:12px;padding:12px}
+.conv-img{max-width:100%;max-height:52vh;border-radius:8px;box-shadow:0 8px 24px rgba(15,51,25,.18)}
+.conv-img-load{padding:40px;color:var(--ink-3);font-size:.9rem}
+/* ═══ Carga masiva ═══ */
+.carga-drop{display:flex;flex-direction:column;align-items:center;gap:4px;border:2px dashed #BFE3C4;background:#F6FBF6;border-radius:14px;padding:22px;cursor:pointer;text-align:center}
+.carga-drop b{color:var(--green-800)}.carga-drop span{font-size:.8rem;color:var(--ink-3)}
+.carga-list{margin-top:10px;font-size:.84rem;display:grid;gap:4px}.carga-list small{color:var(--ink-3)}
+.carga-prog{margin-top:10px;font-size:.84rem;color:var(--green-700);font-weight:700}
+.carga-tw{max-height:52vh;overflow:auto}
+.carga-tbl td{padding:4px!important;vertical-align:top}.carga-tbl .finput{padding:6px 8px;font-size:.8rem;min-height:0}
+.carga-tbl tr.cg-bad td{background:#FDECEA!important}.carga-tbl tr.cg-ok td{background:#F1FAF2!important}
+.carga-tbl .cg-st small{display:block;font-size:.7rem;color:var(--ink-3);margin-top:2px}
+.carga-res{margin-top:10px;font-size:.86rem}

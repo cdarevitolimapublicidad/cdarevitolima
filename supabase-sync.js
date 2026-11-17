@@ -38,14 +38,14 @@ try {
 } catch (e) { console.warn('Supabase no disponible', e); }
 
 /* ---------- Colecciones y permisos (espejo del servidor; la autoridad es RLS) ---------- */
-const SB_COLLS = ['clients','vehicles','appts','revisions','credits','cartera','reminders','cashLedger','bankAccounts','followups','advisors'];
+const SB_COLLS = ['clients','vehicles','appts','revisions','credits','cartera','reminders','cashLedger','bankAccounts','followups','advisors','convenios'];
 const SB_OPS   = ['clients','vehicles','appts','reminders','revisions'];
 const sbCan = {
-  read:  (role, c) => role !== 'asesor' || [...SB_OPS, 'config', 'log'].includes(c),
+  read:  (role, c) => role !== 'asesor' || [...SB_OPS, 'config', 'log', 'followups', 'advisors', 'convenios'].includes(c),
   write: (role, c) =>
     role === 'superusuario' || role === 'superadministrador' ? true :
     role === 'administrador' ? c !== 'config' :
-    role === 'asesor' ? [...SB_OPS, 'log', 'advisors'].includes(c) : false
+    role === 'asesor' ? [...SB_OPS, 'log', 'followups', 'convenios'].includes(c) : false
 };
 
 let sbRole = null, sbReady = false, sbBusy = false, sbStage = '';
@@ -80,6 +80,15 @@ async function sbRpc(name, args) {
   return data;
 }
 const sbReservar       = (cl, veh, ap) => sbRpc('reservar_cita', { p_cliente: cl, p_vehiculo: veh, p_cita: ap });
+const sbValidarConvenio = (codigo) => sbRpc('validar_convenio', { p_codigo: codigo });
+// Lector de formatos físicos (función de Supabase "leer-formato" que usa la IA de Claude).
+async function sbLeerFormato(archivo, hoy) {
+  if (typeof SB === 'undefined' || !SB) throw new Error('SIN_CONEXION');
+  const { data, error } = await SB.functions.invoke('leer-formato', { body: { archivos: [archivo], hoy } });
+  if (error) throw error;
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
 const sbRecordatorio   = row => sbRpc('registrar_recordatorio', { p_row: row });
 const sbSlotsOcupados  = fecha => sbRpc('slots_ocupados', { p_fecha: fecha });
 const sbConfigPublica  = () => sbRpc('config_publica');
@@ -175,7 +184,8 @@ const ADMIN_ROSTER = [
   { usuario:'D1r3cc10n', nombre:'Dirección',   detalle:'Dirección General', rol:'superadministrador', color:'#0F3319', ini:'DG' },
   { usuario:'C4j4',      nombre:'Caja',        detalle:'Paola Jiménez',     rol:'administrador',      color:'#1D6132', ini:'PJ' },
   { usuario:'4s3s0r1',   nombre:'Asesor 1',    detalle:'Jonathan',          rol:'asesor',             color:'#B7862C', ini:'JO' },
-  { usuario:'4s3s0r2',   nombre:'Asesor 2',    detalle:'Hailer',            rol:'asesor',             color:'#B7862C', ini:'HA' }
+  { usuario:'4s3s0r2',   nombre:'Asesor 2',    detalle:'Hailer',            rol:'asesor',             color:'#B7862C', ini:'HA' },
+  { usuario:'4s3s0r3',   nombre:'Asesor 3',    detalle:'Laura',             rol:'asesor',             color:'#B7862C', ini:'LA' }
 ];
 /* Toca una tarjeta → se envía el código al buzón; al verificar entra con el rol de esa persona. */
 async function sbAdminRequestCode(usuario) {
