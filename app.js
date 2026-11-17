@@ -244,14 +244,14 @@ const ROLES = {
     desc:'Gerencia · seguimiento, control y revisión',
     color:'#6D28D9',
     home:'gerencia',
-    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','convenios','cartera','fin','finanzas','export','config']
+    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','convenios','comisiones','cartera','fin','finanzas','export','config']
   },
   superadministrador:{
     label:'Superadministrador',
     desc:'Gerencia · control total y gestión de usuarios',
     color:'#0F3319',
     home:'gerencia',
-    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','convenios','cartera','fin','finanzas','caja','export','usuarios','config']
+    nav:['gerencia','informes','dash','agenda','preventivas','citas','clientes','vehiculos','venc','alertas','pipeline','convenios','comisiones','cartera','fin','finanzas','caja','export','usuarios','config']
   },
   administrador:{
     label:'Usuario administrador',
@@ -487,6 +487,8 @@ function go(where){
   pub.classList.toggle('off', where!=='pub');
   cli.classList.toggle('on', where==='cliente');
   adm.classList.toggle('on', where==='admin');
+  const soc=$('#appSoc'); if(soc) soc.classList.toggle('on', where==='socio');
+  const reg=$('#appReg'); if(reg) reg.classList.toggle('on', where==='registro');
   $('#dd').classList.remove('open');
   $('#nav').classList.remove('open');
   $('#navOv').classList.remove('on');
@@ -494,7 +496,7 @@ function go(where){
   if(where==='admin' && admIn) renderAdmin();
   if(where==='cliente' && cliUser) renderCli();
 }
-const GO_PAGES={pub:'index.html',admin:'admin.html',cliente:'cliente.html'};
+const GO_PAGES={pub:'index.html',admin:'admin.html',cliente:'cliente.html',socio:'socio.html',registro:'registro.html'};
 $$('[data-go]').forEach(a=>a.addEventListener('click',e=>{
   e.preventDefault(); const w=a.dataset.go;
   if(w===(window.CDA_ENTRY||'pub')) go(w); else location.href=GO_PAGES[w]||'index.html';
@@ -1819,6 +1821,7 @@ const NAV_META = {
   clientes:{label:'Clientes', ico:'<circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1"/>', grupo:'Operación'},
   vehiculos:{label:'Vehículos', ico:'<path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2" y="13" width="20" height="6" rx="1.6"/>', grupo:'Operación'},
   venc:{label:'Vencimientos', ico:'<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>', grupo:'Operación', badge:'bgVenc'},
+  comisiones:{label:'Comisiones', ico:'<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .9-3 2.2 0 3 6 1.6 6 4.6 0 1.3-1.3 2.2-3 2.2-1.5 0-2.6-.6-3.1-1.6M12 6.5V8m0 8v1.5"/>', grupo:'Operación'},
   convenios:{label:'Convenios', ico:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M3 13h18"/>', grupo:'Operación'},
   alertas:{label:'Alertas', ico:'<path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5M12 17.5v.5"/>', grupo:'Seguimiento', badge:'bgAlertas'},
   pipeline:{label:'Seguimiento', ico:'<rect x="3" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/>', grupo:'Seguimiento', badge:'bgPipe'},
@@ -2222,7 +2225,7 @@ async function imagenConvenio(cv,sinLogo){
   const yI=yC+410; x.fillStyle='#12190F'; x.font='700 38px '+F;
   x.fillText('Preséntalo al agendar tu revisión técnico-mecánica',W/2,yI); x.fillText('en cdarevitolima.co o al llegar al CDA',W/2,yI+52);
   x.fillStyle=GRIS; x.font='500 28px '+F;
-  x.fillText(`Representante legal: ${cv.rep.nombre}${cv.advisorId?'  ·  Asesor: '+advNombre(cv.advisorId):''}`,W/2,yI+130);
+  { const _rl=[(cv.rep&&cv.rep.nombre)?'Representante legal: '+cv.rep.nombre:'', cv.advisorId?'Asesor: '+advNombre(cv.advisorId):''].filter(Boolean).join('  ·  '); if(_rl) x.fillText(_rl,W/2,yI+130); }
   x.fillStyle=V2; x.font='800 32px '+F; x.fillText('Calle 111 #20-25 Sur, Aparco · Ibagué · 321 356 6313',W/2,H-210);
   x.fillStyle=GRIS; x.font='500 24px '+F; x.fillText(`L–V ${horarioTexto('lv')}  ·  Sáb ${horarioTexto('sab')}  ·  Dom y festivos ${horarioTexto('dom')}`,W/2,H-160);
   try{ return c.toDataURL('image/png'); }
@@ -2433,6 +2436,281 @@ function revisarCarga(filas,aviso){
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   COMISIONES · gerencia define meta, bono y valor por venta de cada asesor,
+   y el valor por venta que gana cada empresa con convenio (socio).
+   ═══════════════════════════════════════════════════════════════ */
+const _num=(v,d)=>{ const n=Number(String(v==null?'':v).replace(/[^\d.]/g,'')); return (v===''||v==null||isNaN(n))?d:n; };
+function cfgAsesor(id){
+  const m=((DB.config&&DB.config.metasAsesor)||{})[id]||{};
+  return { meta:Math.max(1,_num(m.meta,DB.config.metaMensualVehiculos||50)), bono:_num(m.bono,0), porVenta:_num(m.porVenta,DB.config.comisionPorCita||0) };
+}
+function valorSocio(cv){ const v=cv&&cv.comisionPorVenta; return (v!==undefined&&v!==null&&v!=='')?_num(v,0):_num(DB.config.comisionSocioDefault,0); }
+function esVenta(a){ return !!(a.confirmedArrival||a.status==='Completada'); }
+// Cálculo del portal socios (el servidor hace el mismo cálculo en portal_socio)
+function calcPortalSocio(cv, appts, clients, cfg){
+  cfg=cfg||DB.config; const def=_num(cfg&&cfg.comisionSocioDefault,0);
+  const val=(cv.comisionPorVenta!==undefined&&cv.comisionPorVenta!==null&&cv.comisionPorVenta!=='')?_num(cv.comisionPorVenta,0):def;
+  const hoy=iso(today), mesAct=hoy.slice(0,7);
+  const mine=appts.filter(a=>a.convenioId===cv.id && a.status!=='Cancelada');
+  const meses=[]; const base=new Date(today.getFullYear(),today.getMonth(),1,12);
+  for(let i=5;i>=0;i--){ const d=new Date(base.getFullYear(),base.getMonth()-i,1,12); const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const del=mine.filter(a=>String(a.date).slice(0,7)===k); meses.push({mes:k,visitas:del.length,ventas:del.filter(esVenta).length}); }
+  const mesL=mine.filter(a=>String(a.date).slice(0,7)===mesAct), vm=mesL.filter(esVenta).length, vt=mine.filter(esVenta).length;
+  const adv=ADVISORS.find(x=>x.id===cv.advisorId);
+  return { id:cv.id, codigo:cv.codigo, empresa:(cv.empresa&&cv.empresa.razon)||('Convenio '+cv.codigo), representante:(cv.rep&&cv.rep.nombre)||'',
+    asesor:adv?adv.name:'', valorPorVenta:val, meses,
+    mes:{visitas:mesL.length, ventas:vm, comision:vm*val}, total:{visitas:mine.length, ventas:vt, comision:vt*val},
+    proximas:mine.filter(a=>String(a.date)>=hoy && !esVenta(a) && a.status!=='Inasistente').length,
+    colaboradores:clients.filter(c=>c.convenioId===cv.id).length };
+}
+function accesoSocio(cv){
+  const d=String((cv.rep&&cv.rep.doc)||'').replace(/\D/g,''); if(d.length>=5) return {etiqueta:'la cédula del representante', valor:d};
+  const n=String((cv.empresa&&cv.empresa.nit)||'').split('-')[0].replace(/\D/g,''); if(n.length>=5) return {etiqueta:'el NIT sin dígito de verificación', valor:n};
+  return null;
+}
+function puedeEditarComisiones(){ return !!(currentUser && currentUser.role==='superusuario'); }
+function renderComisiones(){
+  const box=$('#avCom'); if(!box||!currentUser) return;
+  if(!['superusuario','superadministrador'].includes(currentUser.role)){ box.innerHTML=''; return; }
+  const ed=puedeEditarComisiones(), dis=ed?'':'disabled';
+  const filasA=ADVISORS.map(a=>{ const c=cfgAsesor(a.id), st=advisorMonthStats(a.id), pct=Math.min(100,Math.round(st.total/c.meta*100));
+    return `<tr data-adv="${a.id}">
+      <td><b>${a.name}</b><small>${st.metaAlcanzada?'<span style="color:var(--green-700);font-weight:700">✅ Meta cumplida</span>':`Faltan ${c.meta-st.total} para la meta`}</small></td>
+      <td><input class="finput cm-in" type="number" min="1" step="1" data-k="meta" value="${c.meta}" ${dis} style="width:90px"></td>
+      <td><input class="finput cm-in" type="number" min="0" step="500" data-k="bono" value="${c.bono}" ${dis} style="width:120px"></td>
+      <td><input class="finput cm-in" type="number" min="0" step="100" data-k="porVenta" value="${c.porVenta}" ${dis} style="width:120px"></td>
+      <td class="num"><b>${st.total}</b> / ${c.meta}<div class="bar" style="margin-top:4px"><i style="width:${pct}%;background:${st.metaAlcanzada?'var(--green-500)':'var(--gold)'}"></i></div></td>
+      <td class="num"><b>${COP(st.comision)}</b><small>${st.metaAlcanzada?`Bono ${COP(st.bono)} + ${st.comisionables} × ${COP(c.porVenta)}`:'Aún sin comisión'}</small></td></tr>`; }).join('');
+  const convs=(DB.convenios||[]).slice().sort((x,y)=>String(x.codigo).localeCompare(String(y.codigo)));
+  const filasS=convs.map(cv=>{ const s=calcPortalSocio(cv,DB.appts,DB.clients), propio=cv.comisionPorVenta!==undefined&&cv.comisionPorVenta!==null&&cv.comisionPorVenta!=='';
+    return `<tr data-cv="${cv.id}"><td><span class="conv-code">${cv.codigo}</span></td><td><b>${s.empresa}</b><small>${advNombre(cv.advisorId)||'Directo CDA'}</small></td>
+      <td><input class="finput cs-in" type="number" min="0" step="100" value="${propio?_num(cv.comisionPorVenta,0):''}" placeholder="${COP(_num(DB.config.comisionSocioDefault,0))} (general)" ${dis} style="width:150px"></td>
+      <td class="num">${s.mes.visitas}</td><td class="num"><b>${s.mes.ventas}</b></td><td class="num"><b>${COP(s.mes.comision)}</b></td></tr>`; }).join('');
+  const totA=ADVISORS.reduce((t,a)=>t+advisorMonthStats(a.id).comision,0), totS=convs.reduce((t,cv)=>t+calcPortalSocio(cv,DB.appts,DB.clients).mes.comision,0);
+  box.innerHTML=`
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      ${kpi('Comisiones asesores (mes)',COP(totA),'money','Bono de meta + ventas después de la meta')}
+      ${kpi('Comisiones socios (mes)',COP(totS),'briefcase','Ventas por convenio × valor por venta')}
+      ${kpi('Total a liquidar (mes)',COP(totA+totS),'chart','Asesores + socios','win')}
+    </div>
+    ${ed?'':'<div class="note-box" style="margin-bottom:14px">Solo gerencia puede cambiar estos valores. Aquí los ves en modo consulta.</div>'}
+    <div class="panel"><div class="panel-h"><div><h3>Metas y comisiones de asesores</h3><p>Al llegar a la meta del mes gana el bono, y por cada venta <b>después</b> de la meta gana el valor por venta. Se reinicia el día 1 de cada mes.</p></div>
+      <div class="tbar">${ed?'<button class="btn btn-p btn-sm" id="cmSave">Guardar asesores</button>':''}<button class="btn btn-o btn-sm" id="cmPdf">Liquidación del mes (PDF)</button></div></div>
+      <div class="panel-b flush"><div class="tw"><table><thead><tr><th>Asesor</th><th>Meta del mes (ventas)</th><th>Bono al llegar a la meta</th><th>Valor por venta después de la meta</th><th>Avance</th><th>Comisión del mes</th></tr></thead>
+      <tbody>${filasA||`<tr><td colspan="6">${emptyBox('Sin asesores','')}</td></tr>`}</tbody></table></div></div></div>
+    <div class="panel"><div class="panel-h"><div><h3>Comisiones de socios (empresas con convenio)</h3><p>Cada revisión realizada con el código del convenio es una venta para la empresa. Si dejas el valor vacío, usa el valor general.</p></div>
+      ${ed?'<div class="tbar"><button class="btn btn-p btn-sm" id="csSave">Guardar socios</button></div>':''}</div>
+      <div class="panel-b"><div class="cfg-row"><div><b>Valor general por venta</b><small>Se aplica a los convenios que no tengan un valor propio</small></div>
+        <input class="finput" type="number" min="0" step="100" id="csDef" value="${_num(DB.config.comisionSocioDefault,0)}" ${dis} style="max-width:150px"></div></div>
+      <div class="panel-b flush"><div class="tw"><table><thead><tr><th>Código</th><th>Empresa</th><th>Valor por venta</th><th>Visitas del mes</th><th>Ventas del mes</th><th>Comisión del mes</th></tr></thead>
+      <tbody>${filasS||`<tr><td colspan="6">${emptyBox('Aún no hay convenios','Créalos en la sección Convenios.')}</td></tr>`}</tbody></table></div></div></div>`;
+  $('#cmPdf')?.addEventListener('click',()=>generarInformePDF('liquidacion'));
+  $('#cmSave')?.addEventListener('click',()=>{
+    const m={...(DB.config.metasAsesor||{})};
+    for(const tr of $$('#avCom tr[data-adv]')){ const g=k=>tr.querySelector(`[data-k="${k}"]`).value;
+      const meta=parseInt(g('meta'),10), bono=_num(g('bono'),-1), pv=_num(g('porVenta'),-1);
+      if(!(meta>=1)) return toast('La meta debe ser de al menos 1 venta');
+      if(bono<0||pv<0) return toast('Los valores de comisión no pueden ser negativos');
+      m[tr.dataset.adv]={meta,bono,porVenta:pv}; }
+    DB.config.metasAsesor=m; logAct('Metas y comisiones de asesores actualizadas'); renderAdmin(); toast('Metas y comisiones guardadas');
+  });
+  $('#csSave')?.addEventListener('click',()=>{
+    const def=_num($('#csDef').value,-1); if(def<0) return toast('El valor general no puede ser negativo');
+    DB.config.comisionSocioDefault=def;
+    for(const tr of $$('#avCom tr[data-cv]')){ const cv=convenioPorId(tr.dataset.cv), v=tr.querySelector('.cs-in').value.trim();
+      if(!cv) continue; if(v===''){ delete cv.comisionPorVenta; } else { const n=_num(v,-1); if(n<0) return toast('Los valores no pueden ser negativos'); cv.comisionPorVenta=n; } }
+    logAct('Comisiones de socios actualizadas'); renderAdmin(); toast('Comisiones de socios guardadas');
+  });
+}
+
+/* ═══════ PORTAL SOCIOS (empresas con convenio) ═══════ */
+let socData=null, socSel=0;
+function renderSocio(){
+  const box=$('#socApp'); if(!box||!socData||!socData.length) return;
+  const d=socData[Math.min(socSel,socData.length-1)];
+  const MES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const max=Math.max(1,...d.meses.map(m=>Math.max(m.visitas,m.ventas)));
+  const conCom=_num(d.valorPorVenta,0)>0;
+  box.innerHTML=`
+    <div class="soc-hd">
+      <div><span class="soc-kick">Portal socios · Convenio empresarial</span><h1 class="dsp">${d.empresa}</h1>
+        <p>Código <span class="conv-code">${d.codigo}</span>${d.asesor?` · Asesor: <b>${d.asesor}</b>`:''}</p></div>
+      <div class="soc-act">${socData.length>1?`<select class="finput" id="socSel">${socData.map((x,i)=>`<option value="${i}" ${i===socSel?'selected':''}>${x.codigo} · ${x.empresa}</option>`).join('')}</select>`:''}
+        <button class="btn btn-o btn-sm" id="socImg">Imagen del código</button><button class="btn btn-o btn-sm" id="socOut">Salir</button></div>
+    </div>
+    <div class="kpis">
+      ${kpi('Ventas del mes',d.mes.ventas,'check','Revisiones realizadas con su código','win')}
+      ${kpi('Visitas del mes',d.mes.visitas,'cal','Citas agendadas con su código')}
+      ${kpi('Comisión del mes',conCom?COP(d.mes.comision):'No aplica','money',conCom?`${d.mes.ventas} × ${COP(d.valorPorVenta)} por venta`:'Su convenio no tiene comisión asignada')}
+      ${kpi('Colaboradores inscritos',d.colaboradores,'user',`${d.proximas} cita(s) próxima(s)`)}
+    </div>
+    <div class="panel"><div class="panel-h"><div><h3>Ventas y visitas · últimos 6 meses</h3><p>Visitas: citas agendadas. Ventas: revisiones que sí se realizaron.</p></div></div>
+      <div class="panel-b"><div class="soc-chart">${d.meses.map(m=>`<div class="soc-col"><div class="soc-bars">
+        <i class="v" style="height:${Math.round(m.visitas/max*100)}%" title="${m.visitas} visitas"><b>${m.visitas||''}</b></i>
+        <i class="s" style="height:${Math.round(m.ventas/max*100)}%" title="${m.ventas} ventas"><b>${m.ventas||''}</b></i></div>
+        <span>${MES[+m.mes.slice(5,7)-1]}</span></div>`).join('')}</div>
+        <div class="soc-leg"><span><i class="v"></i>Visitas</span><span><i class="s"></i>Ventas</span></div></div></div>
+    <div class="panel"><div class="panel-h"><div><h3>Acumulado del convenio</h3></div></div><div class="panel-b flush"><div class="tw"><table>
+      <thead><tr><th>Mes</th><th class="num">Visitas</th><th class="num">Ventas</th>${conCom?'<th class="num">Comisión</th>':''}</tr></thead>
+      <tbody>${d.meses.slice().reverse().map(m=>`<tr><td>${MES[+m.mes.slice(5,7)-1]} ${m.mes.slice(0,4)}</td><td class="num">${m.visitas}</td><td class="num"><b>${m.ventas}</b></td>${conCom?`<td class="num">${COP(m.ventas*d.valorPorVenta)}</td>`:''}</tr>`).join('')}
+      <tr class="total-row"><td>Total histórico</td><td class="num">${d.total.visitas}</td><td class="num">${d.total.ventas}</td>${conCom?`<td class="num">${COP(d.total.comision)}</td>`:''}</tr></tbody></table></div></div></div>
+    <p class="soc-ft">Para proteger la privacidad de sus colaboradores, este portal muestra solo cifras. Para inscribir colaboradores, compártales el código <b>${d.codigo}</b>: lo dan al agendar en cdarevitolima.co o al llegar al CDA. ¿Dudas? 321 356 6313.</p>`;
+  $('#socSel')?.addEventListener('change',e=>{ socSel=+e.target.value; renderSocio(); });
+  $('#socOut').addEventListener('click',()=>{ socData=null; socSel=0; $('#socApp').style.display='none'; $('#socLogin').style.display=''; $('#soUser').value=''; $('#soPass').value=''; });
+  $('#socImg').addEventListener('click',()=>mostrarImagenConvenio({codigo:d.codigo,empresa:{razon:d.empresa},rep:{nombre:d.representante},advisorId:null},false));
+}
+if($('#socForm')) $('#socForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const u=$('#soUser').value.replace(/\D/g,''), p=$('#soPass').value.replace(/\D/g,''), err=$('#soErr'), btn=$('#socForm button[type=submit]');
+  err.classList.remove('on');
+  if(u.length<5||u!==p){ err.textContent='Escribe tu cédula (o el NIT de la empresa) en los dos campos.'; err.classList.add('on'); return; }
+  btn.disabled=true; btn.textContent='Ingresando…';
+  try{ const r=await sbPortalSocio(u,p); if(!Array.isArray(r)||!r.length) throw new Error('CREDENCIALES');
+    socData=r; socSel=0; $('#socLogin').style.display='none'; $('#socApp').style.display=''; renderSocio(); window.scrollTo(0,0);
+  }catch(ex){ err.textContent=String(ex&&ex.message||ex).includes('CREDENCIALES')?'No encontramos un convenio activo con ese número. Revisa o escríbenos por WhatsApp.':'No pudimos ingresar ahora. Intenta de nuevo en un momento.'; err.classList.add('on'); }
+  finally{ btn.disabled=false; btn.textContent='Ingresar'; }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   QR DE REGISTRO POR ASESOR · el asesor escanea su QR y registra clientes
+   desde el celular, sin iniciar sesión; quedan a su nombre.
+   ═══════════════════════════════════════════════════════════════ */
+const REG_BASE='https://cdarevitolima.co/registro';
+// Generador de QR propio (ISO/IEC 18004, modo byte, corrección M, versiones 1–6)
+const QR_SPEC_M={1:[10,[[1,16]]],2:[16,[[1,28]]],3:[26,[[1,44]]],4:[18,[[2,32]]],5:[24,[[2,43]]],6:[16,[[4,27]]]};
+const QR_CAP_M={1:14,2:26,3:42,4:62,5:84,6:106};
+const QR_ALIGN={2:[6,18],3:[6,22],4:[6,26],5:[6,30],6:[6,34]};
+function qrMatrix(text){
+  const data=Array.from(new TextEncoder().encode(text));
+  const EXP=new Array(512), LOG=new Array(256); let x=1;
+  for(let i=0;i<255;i++){ EXP[i]=x; LOG[x]=i; x<<=1; if(x&0x100) x^=0x11d; }
+  for(let i=255;i<512;i++) EXP[i]=EXP[i-255];
+  const mul=(a,b)=>(a&&b)?EXP[LOG[a]+LOG[b]]:0;
+  const gen=n=>{ let g=[1]; for(let i=0;i<n;i++){ const g2=new Array(g.length+1).fill(0); for(let j=0;j<g.length;j++){ g2[j]^=g[j]; g2[j+1]^=mul(g[j],EXP[i]); } g=g2; } return g; };
+  const ecc=(msg,n)=>{ const g=gen(n), r=[...msg,...new Array(n).fill(0)]; for(let i=0;i<msg.length;i++){ const c=r[i]; if(c) for(let j=0;j<g.length;j++) r[i+j]^=mul(g[j],c); } return r.slice(msg.length); };
+  let ver=0; for(let v=1;v<=6;v++){ if(data.length<=QR_CAP_M[v]){ ver=v; break; } } if(!ver) throw new Error('QR_LARGO');
+  const size=17+4*ver, [eccN,groups]=QR_SPEC_M[ver], total=groups.reduce((s,[c,d])=>s+c*d,0);
+  const bits=[], put=(v,n)=>{ for(let i=n-1;i>=0;i--) bits.push((v>>i)&1); };
+  put(4,4); put(data.length,8); data.forEach(b=>put(b,8));
+  put(0,Math.min(4,total*8-bits.length)); while(bits.length%8) bits.push(0);
+  for(let i=0;bits.length/8<total;i++) put(i%2?0x11:0xEC,8);
+  const cw=[]; for(let i=0;i<bits.length;i+=8){ let v=0; for(let j=0;j<8;j++) v=(v<<1)|bits[i+j]; cw.push(v); }
+  const blocks=[]; let idx=0; groups.forEach(([c,d])=>{ for(let k=0;k<c;k++){ const blk=cw.slice(idx,idx+d); idx+=d; blocks.push([blk,ecc(blk,eccN)]); } });
+  const fin=[], maxd=Math.max(...blocks.map(b=>b[0].length));
+  for(let i=0;i<maxd;i++) blocks.forEach(b=>{ if(i<b[0].length) fin.push(b[0][i]); });
+  for(let i=0;i<eccN;i++) blocks.forEach(b=>fin.push(b[1][i]));
+  const mb=[]; fin.forEach(c=>{ for(let i=7;i>=0;i--) mb.push((c>>i)&1); });
+  const m=Array.from({length:size},()=>new Array(size).fill(null));
+  const finder=(r,c)=>{ for(let dr=-1;dr<8;dr++) for(let dc=-1;dc<8;dc++){ const rr=r+dr, cc=c+dc; if(rr<0||cc<0||rr>=size||cc>=size) continue;
+    m[rr][cc]=(dr>=0&&dr<=6&&dc>=0&&dc<=6&&(dr===0||dr===6||dc===0||dc===6||(dr>=2&&dr<=4&&dc>=2&&dc<=4)))?1:0; } };
+  finder(0,0); finder(0,size-7); finder(size-7,0);
+  for(let i=0;i<size;i++){ if(m[6][i]===null) m[6][i]=i%2?0:1; if(m[i][6]===null) m[i][6]=i%2?0:1; }
+  if(ver>=2){ const L=QR_ALIGN[ver]; for(const r of L) for(const c of L){ if((r<=8&&c<=8)||(r<=8&&c>=size-9)||(r>=size-9&&c<=8)) continue;
+    for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++) m[r+dr][c+dc]=(Math.abs(dr)===2||Math.abs(dc)===2||(dr===0&&dc===0))?1:0; } }
+  m[size-8][8]=1;
+  for(let i=0;i<9;i++){ if(m[8][i]===null) m[8][i]=0; if(m[i][8]===null) m[i][8]=0; }
+  for(let i=0;i<8;i++){ if(m[8][size-1-i]===null) m[8][size-1-i]=0; if(m[size-1-i][8]===null) m[size-1-i][8]=0; }
+  let di=0, up=true;
+  for(let col=size-1;col>0;col-=2){ if(col===6) col--;
+    for(let i=0;i<size;i++){ const r=up?size-1-i:i; for(const c of [col,col-1]){ if(m[r][c]===null){ let bit=di<mb.length?mb[di]:0; di++; if((r+c)%2===0) bit^=1; m[r][c]=bit; } } }
+    up=!up; }
+  const bch=f=>{ let v=f<<10; for(let i=14;i>=10;i--) if((v>>i)&1) v^=0x537<<(i-10); return ((f<<10)|v)^0x5412; };
+  const fb=bch(0), fbits=Array.from({length:15},(_,i)=>(fb>>(14-i))&1);   // corrección M, máscara 0
+  const c1=[[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+  const c2=[[size-1,8],[size-2,8],[size-3,8],[size-4,8],[size-5,8],[size-6,8],[size-7,8],[8,size-8],[8,size-7],[8,size-6],[8,size-5],[8,size-4],[8,size-3],[8,size-2],[8,size-1]];
+  fbits.forEach((bt,i)=>{ m[c1[i][0]][c1[i][1]]=bt; m[c2[i][0]][c2[i][1]]=bt; });
+  return {m,size};
+}
+function dibujarQR(ctx,text,x0,y0,lado,color){
+  const {m,size}=qrMatrix(text), q=4, mod=lado/(size+2*q);
+  ctx.fillStyle='#fff'; ctx.fillRect(x0,y0,lado,lado); ctx.fillStyle=color||'#0F3319';
+  for(let r=0;r<size;r++) for(let c=0;c<size;c++) if(m[r][c]) ctx.fillRect(Math.floor(x0+(c+q)*mod),Math.floor(y0+(r+q)*mod),Math.ceil(mod),Math.ceil(mod));
+}
+function qrCanvas(text,lado){ const cv=document.createElement('canvas'); cv.width=cv.height=lado; dibujarQR(cv.getContext('2d'),text,0,0,lado); return cv; }
+function urlRegistro(advId,tok){ return `${REG_BASE}?a=${encodeURIComponent(advId)}&t=${encodeURIComponent(tok)}`; }
+async function imagenQRRegistro(nombre,url,sinLogo){
+  const W=1000,H=1300, c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+  const VERDE='#0F3319', V2='#1D6132', LIMA='#C9F04A', GRIS='#5F6B5E', F='"Inter","Segoe UI",Arial,sans-serif';
+  x.fillStyle='#FBFAF6'; x.fillRect(0,0,W,H);
+  _rr(x,40,40,W-80,H-80,40); x.fillStyle='#fff'; x.fill(); x.lineWidth=5; x.strokeStyle=VERDE; x.stroke();
+  x.save(); _rr(x,40,40,W-80,H-80,40); x.clip(); x.fillStyle=VERDE; x.fillRect(40,40,W-80,250); x.restore();
+  _rr(x,W/2-250,80,500,170,28); x.fillStyle='#fff'; x.fill();
+  let logo=null; if(!sinLogo){ try{ logo=await _cargarImg(LOGO_SRC); }catch(e){ logo=null; } }
+  x.textAlign='center';
+  if(logo){ const lw=440, lh=Math.min(150,logo.height*lw/logo.width); x.drawImage(logo,W/2-lw/2,80+(170-lh)/2,lw,lh); }
+  else { x.fillStyle=VERDE; x.font='900 62px '+F; x.fillText('CDA',W/2,165); x.fillStyle='#7A1F1F'; x.font='800 38px '+F; x.fillText('REVITOLIMA',W/2,218); }
+  x.fillStyle=V2; x.font='800 30px '+F; x.fillText('REGISTRO DE CLIENTES',W/2,360);
+  x.fillStyle=VERDE; x.font='800 52px '+F; x.fillText('Asesor: '+nombre,W/2,430);
+  dibujarQR(x,url,W/2-330,480,660);
+  _rr(x,W/2-330,480,660,660,24); x.lineWidth=3; x.strokeStyle='#E4E2D7'; x.stroke();
+  x.fillStyle='#12190F'; x.font='700 32px '+F; x.fillText('Escanea con la cámara del celular',W/2,1185);
+  x.fillStyle=GRIS; x.font='500 22px '+F; x.fillText('Uso interno del asesor · si se pierde, genera un QR nuevo en el sistema',W/2,1225);
+  try{ return c.toDataURL('image/png'); } catch(e){ if(!sinLogo) return imagenQRRegistro(nombre,url,true); throw e; }
+}
+function abrirQRRegistro(){
+  const propio=esAsesor();
+  const sel=propio?'':`<label class="flabel">Asesor</label><select id="qrAdv" class="finput" style="margin-bottom:12px"><option value="">Elige el asesor…</option>${ADVISORS.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select>`;
+  modal('QR de registro de clientes',`
+    <p style="font-size:.86rem;color:var(--ink-2);margin-bottom:12px">Escanea este QR con el celular y registra clientes en segundos, sin iniciar sesión. Cada cliente queda creado <b>a nombre del asesor del QR</b>.</p>
+    ${sel}<div id="qrBox" class="qr-box">${propio?'<div class="conv-img-load">Generando QR…</div>':'<div class="conv-img-load">Elige un asesor para ver su QR.</div>'}</div>`,
+    `<button class="btn btn-o" data-mclose>Cerrar</button><button class="btn btn-o" id="qrNew" disabled>Cambiar QR</button><button class="btn btn-o" id="qrCopy" disabled>Copiar enlace</button><a class="btn btn-p" id="qrDl" download="QR_registro.png" aria-disabled="true">Descargar QR</a>`);
+  $$('[data-mclose]').forEach(b=>b.addEventListener('click',closeModal));
+  let actual=null;
+  const pintar=async(advId,nuevo)=>{
+    const box=$('#qrBox'); box.innerHTML='<div class="conv-img-load">Generando QR…</div>';
+    let r; try{ r=await sbQrRegistro(propio?null:advId, !!nuevo); }
+    catch(e){ box.innerHTML='<p style="color:var(--danger)">No se pudo generar el QR. Verifica que el SQL 14 esté ejecutado e intenta de nuevo.</p>'; return; }
+    const nombre=advNombre(r.advisorId)||r.nombre||'Asesor', url=urlRegistro(r.advisorId,r.token); actual={url,nombre};
+    box.innerHTML=''; const cv=qrCanvas(url,300); cv.className='qr-canvas'; box.appendChild(cv);
+    box.insertAdjacentHTML('beforeend',`<p class="qr-who">Asesor: <b>${nombre}</b></p><p class="qr-url">${url}</p>`);
+    $('#qrNew').disabled=false; $('#qrCopy').disabled=false;
+    const dl=$('#qrDl'); dl.removeAttribute('aria-disabled'); dl.download=`QR_registro_${nombre.replace(/[^\w]+/g,'_')}.png`;
+    try{ dl.href=await imagenQRRegistro(nombre,url); }catch(e){ dl.href=cv.toDataURL('image/png'); }
+    window.__qrUrl=url;
+  };
+  if(propio) pintar(miAsesorId(),false);
+  else $('#qrAdv').addEventListener('change',e=>{ if(e.target.value) pintar(e.target.value,false); });
+  $('#qrCopy').addEventListener('click',async()=>{ if(!actual) return; try{ await navigator.clipboard.writeText(actual.url); toast('Enlace copiado'); }catch(e){ toast('Copia el enlace que aparece debajo del QR'); } });
+  $('#qrNew').addEventListener('click',()=>{ if(!actual) return;
+    if(!confirm('¿Generar un QR nuevo? El QR anterior dejará de funcionar.')) return;
+    pintar(propio?miAsesorId():$('#qrAdv').value,true).then(()=>{ toast('QR nuevo generado: el anterior ya no funciona'); logAct('QR de registro renovado'); }); });
+}
+
+/* ───── Página de registro (registro.html) ───── */
+let regCtx=null, regCount=0;
+function regMsg(t,ok){ const e=$('#rgMsg'); if(!e) return; e.className='rg-msg '+(ok?'ok':'bad'); e.innerHTML=t; e.style.display=''; }
+function regTipoAuto(){ const d=detectVehicleByPlate($('#rgPlaca').value); if(!d) return; const t=d.group==='moto'?'moto':'carro'; if(!$('.rg-tipo button.sel')||$('#rgTipo').dataset.auto!=='0') setRegTipo(t,true); }
+function setRegTipo(t,auto){ $$('.rg-tipo button').forEach(b=>b.classList.toggle('sel',b.dataset.t===t)); $('#rgTipo').value=t; if(!auto) $('#rgTipo').dataset.auto='0'; }
+async function iniciarRegistro(){
+  const p=new URLSearchParams(location.search), a=p.get('a')||'', t=p.get('t')||'';
+  const head=$('#rgHead');
+  if(!a||!t){ head.innerHTML='<b>Enlace incompleto</b><span>Escanea el QR de registro que te dieron en el CDA.</span>'; $('#rgForm').style.display='none'; return; }
+  try{ const r=await sbRegistroInfo(a,t); if(!r||!r.ok) throw new Error('ENLACE_INVALIDO');
+    regCtx={a,t,nombre:r.asesor||''}; $('#rgForm').style.display=''; head.innerHTML=`<b>Registro con asesor: ${r.asesor||'—'}</b><span>Los clientes que registres quedan a tu nombre.</span>`;
+  }catch(e){ regCtx=null; head.innerHTML='<b>Este QR ya no es válido</b><span>Pide un QR nuevo en el sistema del CDA (Clientes → QR de registro).</span>'; $('#rgForm').style.display='none'; }
+}
+if($('#rgForm')){
+  $('#rgPlaca').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); regTipoAuto(); });
+  $$('.rg-tipo button').forEach(b=>b.addEventListener('click',()=>setRegTipo(b.dataset.t,false)));
+  $('#rgForm').addEventListener('submit',async e=>{
+    e.preventDefault(); if(!regCtx) return;
+    const v=s=>$(s).value.trim(), d={placa:v('#rgPlaca'),nombre:v('#rgNombre').replace(/\s+/g,' '),cedula:v('#rgCedula').replace(/\D/g,''),celular:v('#rgCelular').replace(/\D/g,''),
+      tipo:$('#rgTipo').value,venceRTM:v('#rgRTM'),venceSOAT:v('#rgSOAT'),correo:v('#rgCorreo'),convenio:v('#rgConv'),autoriza:$('#rgAut').checked};
+    const fal=[]; if(!/^[A-Z]{3}\d{2,3}[A-Z]?$/.test(d.placa)) fal.push('placa'); if(d.nombre.length<3) fal.push('nombre'); if(!/^\d{6,12}$/.test(d.cedula)) fal.push('cédula');
+    if(!/^\d{10}$/.test(d.celular)) fal.push('celular de 10 dígitos'); if(d.correo&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(d.correo)) fal.push('correo');
+    if(fal.length) return regMsg('Revisa: '+fal.join(', ')+'.');
+    if(!d.autoriza) return regMsg('El cliente debe autorizar el tratamiento de sus datos.');
+    const btn=$('#rgForm button[type=submit]'); btn.disabled=true; btn.textContent='Registrando…';
+    try{ const r=await sbRegistrarCliente(regCtx.a,regCtx.t,d);
+      regCount++; regMsg(`✅ <b>${d.nombre}</b> quedó registrado${r&&r.nuevo===false?' (ya existía: se actualizaron sus datos)':''}. Llevas <b>${regCount}</b> en esta sesión.`,true);
+      $('#rgForm').reset(); $$('.rg-tipo button').forEach(b=>b.classList.remove('sel')); $('#rgTipo').value=''; $('#rgTipo').dataset.auto=''; $('#rgPlaca').focus();
+    }catch(ex){ const m=String(ex&&ex.message||ex);
+      regMsg(m.includes('ENLACE_INVALIDO')?'Este QR ya no es válido. Pide uno nuevo en el sistema.':m.includes('CONVENIO_INVALIDO')?'El código de convenio no es válido o está inactivo.':m.includes('DATOS_INCOMPLETOS')?'Faltan datos o tienen errores. Revisa placa, nombre, cédula y celular.':'No se pudo registrar ahora. Revisa la conexión e intenta de nuevo.'); }
+    finally{ btn.disabled=false; btn.textContent='Registrar cliente'; }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
    CONVENIOS · empresas aliadas con código CDA-0000
    El código se le da a los clientes de la empresa; cada revisión que llegue
    con ese código queda en la ficha del cliente y se le suma al asesor que hizo el convenio.
@@ -2477,9 +2755,13 @@ function kpisConvenios(){
     ${kpi('Clientes en convenio',sum('clientes'),'user','Con código de convenio')}</div>`;
 }
 function mensajeConvenio(c){
-  return `Hola ${c.rep.nombre.split(' ')[0]}, el convenio de *${c.empresa.razon}* con CDA Revitolima quedó creado. 🤝\n\n`+
+  const n=((c.rep&&c.rep.nombre)||'').split(' ')[0];
+  const acc=accesoSocio(c);
+  return `Hola${n?' '+n:''}, el convenio de *${c.empresa.razon}* con CDA Revitolima quedó creado. 🤝\n\n`+
     `Su código es: *${c.codigo}*\n\nSus colaboradores lo dan al agendar su revisión técnico-mecánica en cdarevitolima.co `+
-    `o cuando lleguen al CDA, y quedan registrados dentro del convenio.\n\nCalle 111 #20-25 Sur, Aparco · Ibagué · 321 356 6313`;
+    `o cuando lleguen al CDA, y quedan registrados dentro del convenio.\n\n`+
+    (acc?`📊 Consulte las ventas, visitas y comisiones de su convenio en *cdarevitolima.co/socio*: su usuario y su contraseña son ${acc.etiqueta} (${acc.valor}).\n\n`:'')+
+    `Calle 111 #20-25 Sur, Aparco · Ibagué · 321 356 6313`;
 }
 function renderConvenios(){
   const box=$('#avConv'); if(!box) return;
@@ -2490,8 +2772,8 @@ function renderConvenios(){
     const wa=c.rep.telefono?`https://wa.me/57${c.rep.telefono}?text=${encodeURIComponent(mensajeConvenio(c))}`:'';
     return `<tr>
       <td><span class="conv-code">${c.codigo}</span></td>
-      <td><b>${c.empresa.razon}</b><small>NIT ${c.empresa.nit}${c.empresa.ciudad?' · '+c.empresa.ciudad:''}</small></td>
-      <td><b>${c.rep.nombre}</b><small>C.C. ${c.rep.doc} · ${c.rep.telefono}</small></td>
+      <td><b>${c.empresa.razon}</b><small>${c.empresa.nit?'NIT '+c.empresa.nit:'Sin NIT'}${c.empresa.ciudad?' · '+c.empresa.ciudad:''}</small></td>
+      <td><b>${c.rep.nombre||'—'}</b><small>${c.rep.doc?'C.C. '+c.rep.doc:'Sin cédula'}${c.rep.telefono?' · '+c.rep.telefono:''}</small><small style="color:${accesoSocio(c)?'var(--green-700)':'var(--danger)'}">${accesoSocio(c)?'Portal socios: entra con '+accesoSocio(c).etiqueta:'Sin acceso al portal: falta cédula o NIT'}</small></td>
       <td>${adv}</td>
       <td class="num">${s.clientes}</td>
       <td class="num"><b>${s.revisiones}</b><small>${s.mes} este mes</small></td>
@@ -2523,18 +2805,18 @@ function abrirConvenio(id){
       <small>${ex?'Es el código que se le da a los clientes de la empresa.':'Se genera solo. Es el que se le entrega a los clientes de la empresa para que lo den en el CDA.'}</small></div>
     <h4 class="cv-h">Datos de la empresa</h4>
     <div class="fgrid">
-      <div><label class="flabel">Razón social *</label><input id="cvRazon" class="finput" value="${val(e.razon)}" placeholder="Nombre de la empresa"></div>
-      <div><label class="flabel">NIT *</label><input id="cvNit" class="finput" value="${val(e.nit)}" placeholder="900.000.000-0"></div>
-      <div><label class="flabel">Teléfono *</label><input id="cvTel" class="finput" inputmode="tel" value="${val(e.telefono)}" placeholder="Teléfono de la empresa"></div>
+      <div><label class="flabel">Razón social</label><input id="cvRazon" class="finput" value="${val(e.razon)}" placeholder="Nombre de la empresa"></div>
+      <div><label class="flabel">NIT</label><input id="cvNit" class="finput" value="${val(e.nit)}" placeholder="900.000.000-0"></div>
+      <div><label class="flabel">Teléfono</label><input id="cvTel" class="finput" inputmode="tel" value="${val(e.telefono)}" placeholder="Teléfono de la empresa"></div>
       <div><label class="flabel">Correo</label><input id="cvMail" class="finput" type="email" value="${val(e.correo)}" placeholder="correo@empresa.com"></div>
       <div><label class="flabel">Dirección</label><input id="cvDir" class="finput" value="${val(e.direccion)}" placeholder="Dirección"></div>
       <div><label class="flabel">Ciudad</label><input id="cvCiudad" class="finput" value="${val(e.ciudad)||'Ibagué'}"></div>
     </div>
     <h4 class="cv-h">Representante legal</h4>
     <div class="fgrid">
-      <div><label class="flabel">Nombre completo *</label><input id="cvRepNom" class="finput" value="${val(r.nombre)}" placeholder="Nombre y apellido"></div>
-      <div><label class="flabel">Cédula *</label><input id="cvRepDoc" class="finput" inputmode="numeric" value="${val(r.doc)}" placeholder="Número de cédula"></div>
-      <div><label class="flabel">Celular *</label><input id="cvRepTel" class="finput" inputmode="tel" value="${val(r.telefono)}" placeholder="3XX XXX XXXX"></div>
+      <div><label class="flabel">Nombre completo</label><input id="cvRepNom" class="finput" value="${val(r.nombre)}" placeholder="Nombre y apellido"></div>
+      <div><label class="flabel">Cédula</label><input id="cvRepDoc" class="finput" inputmode="numeric" value="${val(r.doc)}" placeholder="Número de cédula"></div>
+      <div><label class="flabel">Celular</label><input id="cvRepTel" class="finput" inputmode="tel" value="${val(r.telefono)}" placeholder="3XX XXX XXXX"></div>
       <div><label class="flabel">Correo</label><input id="cvRepMail" class="finput" type="email" value="${val(r.correo)}" placeholder="correo@ejemplo.com"></div>
       <div><label class="flabel">Cargo</label><input id="cvRepCargo" class="finput" value="${val(r.cargo)||'Representante legal'}"></div>
     </div>
@@ -2551,12 +2833,13 @@ function abrirConvenio(id){
     const v=s=>$(s).value.trim(), dig=s=>v(s).replace(/\D/g,'');
     const emp={razon:v('#cvRazon'),nit:v('#cvNit'),direccion:v('#cvDir'),ciudad:v('#cvCiudad'),telefono:dig('#cvTel'),correo:v('#cvMail')};
     const rep={nombre:v('#cvRepNom'),doc:dig('#cvRepDoc'),cargo:v('#cvRepCargo')||'Representante legal',telefono:dig('#cvRepTel'),correo:v('#cvRepMail')};
-    if(emp.razon.length<3||!emp.nit) return toast('Escribe la razón social y el NIT de la empresa');
-    if(emp.telefono.length<7) return toast('Escribe el teléfono de la empresa');
-    if(rep.nombre.length<3||rep.doc.length<5) return toast('Escribe el nombre y la cédula del representante legal');
-    if(rep.telefono.length<7) return toast('Escribe el celular del representante legal');
-    const nitN=emp.nit.replace(/\D/g,'');
-    if((DB.convenios||[]).some(c=>c.id!==(ex&&ex.id) && c.empresa.nit.replace(/\D/g,'')===nitN)) return toast('Ya existe un convenio con ese NIT');
+    // Todos los campos son opcionales. Solo se revisa el formato de lo que sí se escriba.
+    if(emp.correo && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(emp.correo)) return toast('El correo de la empresa no es válido');
+    if(rep.correo && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(rep.correo)) return toast('El correo del representante no es válido');
+    if(rep.doc && rep.doc.length<5) return toast('La cédula del representante parece incompleta');
+    if(!emp.razon) emp.razon = ex ? ex.empresa.razon || ('Convenio '+cod) : ('Convenio '+cod);
+    const nitN=String(emp.nit||'').replace(/\D/g,'');
+    if(nitN && (DB.convenios||[]).some(c=>c.id!==(ex&&ex.id) && String((c.empresa||{}).nit||'').replace(/\D/g,'')===nitN)) return toast('Ya existe un convenio con ese NIT');
     const advId=esAsesor()?miAsesorId():($('#cvAdv').value||null);
     if(ex){
       Object.assign(ex,{empresa:emp,rep,advisorId:advId,estado:$('#cvEstado').value,notas:v('#cvNotas')});
@@ -2715,12 +2998,13 @@ function renderAdmin(){
   /* CLIENTES */
   $('#avCli').innerHTML = panelTable('Clientes','Información de contacto, vehículos, cartera y financiación por cliente.',
     `<div class="tbar"><input class="finput" id="fCli" placeholder="Buscar nombre o documento...">
-      <button class="btn btn-p btn-sm" id="btnNuevoCli">+ Nuevo cliente</button><button class="btn btn-o btn-sm" id="btnMasivo">⬆ Subir clientes masivamente</button><button class="btn btn-o btn-sm" id="btnFormato">🖨 Formato para imprimir</button>
+      <button class="btn btn-p btn-sm" id="btnNuevoCli">+ Nuevo cliente</button><button class="btn btn-o btn-sm" id="btnQRReg">📱 QR de registro</button><button class="btn btn-o btn-sm" id="btnMasivo">⬆ Subir clientes masivamente</button><button class="btn btn-o btn-sm" id="btnFormato">🖨 Formato para imprimir</button>
       <button class="btn btn-o btn-sm" data-exp="clientes">Exportar</button></div>`,
     `<thead><tr><th>Cliente</th><th>Documento</th><th>Contacto</th><th>Vehículos</th><th>Cartera</th><th>Financiación</th><th></th></tr></thead>
      <tbody id="tbCli"></tbody>`);
   drawCli(); $('#fCli').addEventListener('input',drawCli);
   $('#btnMasivo')?.addEventListener('click',abrirCargaMasiva);
+  $('#btnQRReg')?.addEventListener('click',abrirQRRegistro);
   $('#btnFormato')?.addEventListener('click',()=>imprimirFormato());
   $('#btnNuevoCli')?.addEventListener('click',()=>{
     modal('Registrar nuevo cliente','<p style="font-size:.86rem;color:var(--ink-2);margin-bottom:16px">El cliente podrá ingresar al <b>portal cliente</b> con su <b>cédula como usuario y como contraseña</b>.</p>'+
@@ -2789,6 +3073,7 @@ function renderAdmin(){
   renderAlertas();
   renderPipeline();
   renderConvenios();
+  renderComisiones();
 
   /* CARTERA */
   const carSorted=[...DB.cartera].sort((a,b)=>daysTo(a.due)-daysTo(b.due));
@@ -3124,7 +3409,7 @@ function computeArqueo(dateStr){
     const asistio = mine.filter(a=>a.confirmedArrival || a.status==='Completada');
     const noAsistio = mine.filter(a=>!a.confirmedArrival && a.status!=='Completada');
     return {adv, total:mine.length, asistio:asistio.length, noAsistio:noAsistio.length,
-      comision: asistio.length*DB.config.comisionPorCita};
+      comision: asistio.length*cfgAsesor(adv.id).porVenta};
   });
   const sinAsesor = esAsesor()?[]:dayAppts.filter(a=>!a.advisorId);
   return {rows, sinAsesor, totalComision: rows.reduce((s,r)=>s+r.comision,0), dayAppts};
@@ -3211,7 +3496,7 @@ function bindIntg(){
 
 /* ---------- GENERADOR DE DOCUMENTOS PDF CON MARCA CDA ---------- */
 const DOC_PREFIX = {general:'IG', finanzas:'IF', creditos:'IC', equipo:'IE',
-  comisiones:'AC', convenios:'CV', 'convenios-dia':'AV', agenda:'IA', preventivas:'IP', vencimientos:'IV', clientes:'IB', arqueo:'AQ'};
+  comisiones:'AC', liquidacion:'LQ', convenios:'CV', 'convenios-dia':'AV', agenda:'IA', preventivas:'IP', vencimientos:'IV', clientes:'IB', arqueo:'AQ'};
 let docSeq = 1;
 function docRef(tipo){
   const d=new Date();
@@ -3361,10 +3646,10 @@ function _generarInformePDF(tipo){
       kpis:ADVISORS.map(a=>{const st=advisorMonthStats(a.id);
         return {l:a.name.split(' ')[0],v:`${st.total}/${st.meta}`,win:st.metaAlcanzada};}),
       secciones:[
-        `<div class="note"><b>Meta mensual:</b> ${DB.config.metaMensualVehiculos} vehículos por asesor. La comisión de ${COP(DB.config.comisionPorCita)} por vehículo empieza a sumar únicamente al superar la meta. Reinicio automático el día 1 de cada mes.</div>`,
+        `<div class="note"><b>Meta mensual y comisiones:</b> cada asesor tiene su meta, su bono al llegar a la meta y su valor por cada venta después de la meta, definidos por gerencia en la sección Comisiones. Reinicio automático el día 1 de cada mes.</div>`,
         `<h2>Avance por asesor</h2>`+
         barChart(ADVISORS.map(a=>{const st=advisorMonthStats(a.id);
-          return {l:a.name.split(' ')[0],v:st.total,txt:`${st.total}/${st.meta}`,color:st.metaAlcanzada?'#1D6132':'#FAC800'};}),DB.config.metaMensualVehiculos),
+          return {l:a.name.split(' ')[0],v:st.total,txt:`${st.total}/${st.meta}`,color:st.metaAlcanzada?'#1D6132':'#FAC800'};}),Math.max(1,...advsAlcance().map(a=>advisorMonthStats(a.id).meta))),
         `<table><thead><tr><th>Asesor</th><th class="num">Atendidos</th><th class="num">Meta</th><th>Estado</th><th class="num">Comisión</th></tr></thead><tbody>
           ${advsAlcance().map(a=>{const st=advisorMonthStats(a.id);
             return `<tr><td>${a.name}</td><td class="num">${st.total}</td><td class="num">${st.meta}</td>
@@ -3432,6 +3717,21 @@ function _generarInformePDF(tipo){
             :'<tr><td colspan="4">Sin movimientos registrados.</td></tr>'}
         </tbody></table>`]};
   }
+  if(tipo==='liquidacion'){
+    const MESL=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const as=ADVISORS.map(a=>({a,c:cfgAsesor(a.id),st:advisorMonthStats(a.id)}));
+    const so=(DB.convenios||[]).map(cv=>({cv,s:calcPortalSocio(cv,DB.appts,DB.clients)})).filter(x=>x.s.mes.visitas||x.s.mes.ventas||x.s.mes.comision);
+    const tA=as.reduce((t,x)=>t+x.st.comision,0), tS=so.reduce((t,x)=>t+x.s.mes.comision,0);
+    cfg={titulo:'Liquidación de comisiones', subtitulo:`Mes de ${MESL[today.getMonth()]} ${today.getFullYear()} · corte ${fmtDate(iso(today))}`, ref,
+      kpis:[{l:'Asesores',v:COP(tA)},{l:'Socios',v:COP(tS)},{l:'Total a liquidar',v:COP(tA+tS),win:true}],
+      secciones:[`<h2>Asesores</h2><table><thead><tr><th>Asesor</th><th class="num">Meta</th><th class="num">Ventas</th><th class="num">Bono meta</th><th class="num">Ventas después de la meta</th><th class="num">Valor por venta</th><th class="num">Comisión</th></tr></thead><tbody>
+        ${as.map(({a,c,st})=>`<tr><td>${a.name}</td><td class="num">${c.meta}</td><td class="num">${st.total}</td><td class="num">${COP(st.bono)}</td><td class="num">${st.comisionables}</td><td class="num">${COP(c.porVenta)}</td><td class="num"><b>${COP(st.comision)}</b></td></tr>`).join('')}
+        <tr class="tot"><td colspan="6">Total asesores</td><td class="num">${COP(tA)}</td></tr></tbody></table>`,
+      `<h2>Socios (empresas con convenio)</h2><table><thead><tr><th>Código</th><th>Empresa</th><th class="num">Visitas</th><th class="num">Ventas</th><th class="num">Valor por venta</th><th class="num">Comisión</th></tr></thead><tbody>
+        ${so.length?so.map(({cv,s})=>`<tr><td><b>${cv.codigo}</b></td><td>${s.empresa}</td><td class="num">${s.mes.visitas}</td><td class="num">${s.mes.ventas}</td><td class="num">${COP(s.valorPorVenta)}</td><td class="num"><b>${COP(s.mes.comision)}</b></td></tr>`).join(''):'<tr><td colspan="6">Sin movimiento de convenios este mes.</td></tr>'}
+        <tr class="tot"><td colspan="5">Total socios</td><td class="num">${COP(tS)}</td></tr></tbody></table>`,
+      `<div class="note"><b>Reglas:</b> el asesor gana el bono al llegar a su meta del mes y, después de la meta, el valor por cada venta adicional. El socio gana su valor por cada revisión realizada con el código de su convenio.</div>`]};
+  }
   if(tipo==='convenios-dia'){
     const hoy=iso(today), man=iso(addDays(today,1));
     const filas=conveniosVisibles().map(c=>{
@@ -3479,6 +3779,7 @@ const REPORTS = [
   {id:'creditos',  t:'Cartera de créditos',         d:'Dinero en trámite por entidad y desembolsos.',                roles:['superusuario','superadministrador'], nivel:'Gerencial'},
   {id:'equipo',    t:'Desempeño del equipo',        d:'Productividad por asesor y cumplimiento de meta.',            roles:['superusuario','superadministrador'], nivel:'Gerencial'},
   {id:'comisiones',t:'Arqueo de comisiones',        d:'Citas asistidas y comisión del periodo.',                     roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
+  {id:'liquidacion', t:'Liquidación de comisiones del mes', d:'Comisiones de asesores (meta y ventas) y de socios por convenio.', roles:['superusuario','superadministrador'], nivel:'Gerencial'},
   {id:'convenios-dia', t:'Arqueo diario de convenios', d:'Clientes que generó cada convenio hoy y citas para mañana.', roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
   {id:'convenios', t:'Informe de convenios',        d:'Convenios, asesor responsable y revisiones por empresa.',     roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
   {id:'agenda',    t:'Informe de agenda',           d:'Citas agendadas, asistencias e inasistencias.',               roles:['superusuario','superadministrador','administrador','asesor'], nivel:'Operativo'},
@@ -3560,17 +3861,17 @@ function renderGerencia(){
     </div>
     ${kpisConvenios()}
 
-    <div class="panel"><div class="panel-h"><div><h3>Desempeño por asesor</h3><p>Mes en curso · meta ${DB.config.metaMensualVehiculos} vehículos</p></div></div>
+    <div class="panel"><div class="panel-h"><div><h3>Desempeño por asesor</h3><p>Mes en curso · meta y comisión de cada asesor según la sección Comisiones</p></div></div>
       <div class="panel-b">${ADVISORS.map(a=>{
         const c=advisorMonthStats(a.id);
-        const pct=Math.min(100,Math.round(c.total/DB.config.metaMensualVehiculos*100));
+        const pct=Math.min(100,Math.round(c.total/Math.max(1,c.meta)*100));
         return `<div class="ger-adv">
           <div class="ger-adv-hd"><b>${a.name}</b>
-            <span class="${c.metaAlcanzada?'pill pill-ok':'pill pill-warn'}">${c.total} / ${DB.config.metaMensualVehiculos}</span></div>
+            <span class="${c.metaAlcanzada?'pill pill-ok':'pill pill-warn'}">${c.total} / ${c.meta}</span></div>
           <div class="bar"><i style="width:${pct}%;background:${c.metaAlcanzada?'var(--green-500)':'var(--gold)'}"></i></div>
           <div class="ger-adv-ft">${c.metaAlcanzada
             ? `<span style="color:var(--green-700);font-weight:700">✅ Meta alcanzada · comisión ${COP(c.comision)}</span>`
-            : `<span style="color:var(--ink-3)">Faltan ${DB.config.metaMensualVehiculos-c.total} para empezar a comisionar</span>`}</div>
+            : `<span style="color:var(--ink-3)">Faltan ${c.meta-c.total} para llegar a la meta</span>`}</div>
         </div>`;}).join('')}</div></div>
 
     <div class="panel"><div class="panel-h"><div><h3>Qué está haciendo el equipo</h3><p>Actividad reciente en el sistema</p></div></div>
@@ -3587,11 +3888,12 @@ function advisorMonthStats(advId){
     && new Date(a.date+'T00:00:00').getMonth()===m
     && new Date(a.date+'T00:00:00').getFullYear()===y);
   const total=mine.length;
-  const meta=DB.config.metaMensualVehiculos;
+  const c=cfgAsesor(advId), meta=c.meta;
   const metaAlcanzada = total>=meta;
-  // Solo los vehículos por ENCIMA de la meta generan comisión
-  const comisionables = metaAlcanzada ? total-meta+1 : 0;
-  return {total, metaAlcanzada, comisionables, comision: comisionables*DB.config.comisionPorCita, meta};
+  // Bono al llegar a la meta + valor por cada venta DESPUÉS de la meta (lo define gerencia en Comisiones)
+  const comisionables = Math.max(0,total-meta);
+  const bono = metaAlcanzada ? c.bono : 0;
+  return {total, metaAlcanzada, comisionables, bono, porVenta:c.porVenta, comision: bono + comisionables*c.porVenta, meta};
 }
 
 /* ═══════ VISTA 2: MI DÍA (usuario asesor) ═══════ */
@@ -3603,7 +3905,7 @@ function renderMiAgenda(){
   const asist=mine.filter(a=>a.confirmedArrival||a.status==='Completada');
   const pend=mine.filter(a=>!a.confirmedArrival&&a.status!=='Completada'&&a.status!=='Inasistente');
   const noshow=mine.filter(a=>a.status==='Inasistente');
-  const st=advId?advisorMonthStats(advId):{total:0,metaAlcanzada:false,comision:0,meta:DB.config.metaMensualVehiculos};
+  const st=advId?advisorMonthStats(advId):{total:0,metaAlcanzada:false,comision:0,meta:advId?cfgAsesor(advId).meta:DB.config.metaMensualVehiculos};
   const pct=Math.min(100,Math.round(st.total/st.meta*100));
 
   el.innerHTML=`
@@ -4067,7 +4369,7 @@ function renderUsuarios(){
         </tbody></table></div>
         <div style="padding:16px"><div class="note-box"><b>Requiere backend</b>Crear o desactivar usuarios de forma permanente necesita Supabase con autenticación real. La estructura de permisos ya está definida y funcionando.</div></div>
       </div></div>
-    <div class="panel"><div class="panel-h"><div><h3>Perfiles de asesor</h3><p>Meta ${DB.config.metaMensualVehiculos} vehículos · comisión ${COP(DB.config.comisionPorCita)} por vehículo sobre la meta</p></div></div>
+    <div class="panel"><div class="panel-h"><div><h3>Perfiles de asesor</h3><p>Meta y comisión de cada asesor según la sección Comisiones</p></div></div>
       <div class="panel-b flush"><div class="tw"><table>
         <thead><tr><th>Asesor</th><th>Celular</th><th class="num">Mes actual</th><th>Estado meta</th><th class="num">Comisión</th></tr></thead>
         <tbody>${advsAlcance().map(a=>{const st=advisorMonthStats(a.id);
@@ -4716,6 +5018,8 @@ if(window.CDA_ENTRY!=='admin'){
     if(cfg && Object.keys(cfg).length){ Object.assign(DB.config,cfg); applyPublicConfig(); }
   }).catch(()=>{});
 }
+if(window.CDA_ENTRY==='socio'){ go('socio'); document.title='CDA Revitolima · Portal socios'; }
+if(window.CDA_ENTRY==='registro'){ go('registro'); document.title='CDA Revitolima · Registro de clientes'; iniciarRegistro(); }
 if(window.CDA_ENTRY==='admin' || window.CDA_ENTRY==='cliente'){
   go(window.CDA_ENTRY);
   document.title = window.CDA_ENTRY==='admin' ? 'CDA Revitolima · Portal administrativo' : 'CDA Revitolima · Portal del cliente';

@@ -81,6 +81,10 @@ async function sbRpc(name, args) {
 }
 const sbReservar       = (cl, veh, ap) => sbRpc('reservar_cita', { p_cliente: cl, p_vehiculo: veh, p_cita: ap });
 const sbValidarConvenio = (codigo) => sbRpc('validar_convenio', { p_codigo: codigo });
+const sbPortalSocio     = (usuario, clave) => sbRpc('portal_socio', { p_usuario: usuario, p_clave: clave });
+const sbQrRegistro       = (asesor, nuevo) => sbRpc('qr_registro', { p_advisor: asesor || null, p_nuevo: !!nuevo });
+const sbRegistroInfo     = (a, t) => sbRpc('registro_info', { p_asesor: a, p_token: t });
+const sbRegistrarCliente = (a, t, d) => sbRpc('registrar_cliente_asesor', { p_asesor: a, p_token: t, p_d: d });
 // Lector de formatos físicos (función de Supabase "leer-formato" que usa la IA de Claude).
 async function sbLeerFormato(archivo, hoy) {
   if (typeof SB === 'undefined' || !SB) throw new Error('SIN_CONEXION');

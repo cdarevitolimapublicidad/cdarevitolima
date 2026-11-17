@@ -1692,3 +1692,46 @@ td small{display:block;color:var(--ink-3);font-size:.76rem;margin-top:1px}
 .carga-tbl tr.cg-bad td{background:#FDECEA!important}.carga-tbl tr.cg-ok td{background:#F1FAF2!important}
 .carga-tbl .cg-st small{display:block;font-size:.7rem;color:var(--ink-3);margin-top:2px}
 .carga-res{margin-top:10px;font-size:.86rem}
+
+
+/* ═══ Portal socios ═══ */
+#appSoc{display:none}#appSoc.on{display:block}
+.soc-app{max-width:1100px;margin:0 auto;padding:28px 18px 50px}
+.soc-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:16px;border-bottom:3px solid var(--green-800)}
+.soc-kick{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green-700)}
+.soc-hd h1{font-size:1.7rem;margin:4px 0}.soc-hd p{color:var(--ink-2);font-size:.9rem}
+.soc-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.soc-chart{display:flex;gap:10px;align-items:flex-end;height:210px;padding-top:10px}
+.soc-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
+.soc-col span{font-size:.76rem;color:var(--ink-3);font-weight:700}
+.soc-bars{flex:1;width:100%;display:flex;gap:4px;align-items:flex-end;justify-content:center}
+.soc-bars i{display:block;width:42%;max-width:34px;border-radius:6px 6px 0 0;position:relative;min-height:2px}
+.soc-bars i b{position:absolute;top:-17px;left:0;right:0;text-align:center;font-size:.68rem;color:var(--ink-2)}
+.soc-bars i.v,.soc-leg i.v{background:#C9D9C6}.soc-bars i.s,.soc-leg i.s{background:var(--green-700)}
+.soc-leg{display:flex;gap:16px;justify-content:center;margin-top:10px;font-size:.78rem;color:var(--ink-2)}
+.soc-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.soc-ft{font-size:.8rem;color:var(--ink-3);text-align:center;margin-top:16px;line-height:1.6}
+@media(max-width:720px){.soc-hd h1{font-size:1.35rem}.soc-chart{height:170px}}
+
+
+/* ═══ Registro por QR (celular) ═══ */
+#appReg{display:none;background:var(--ivory,#FBFAF6);min-height:100vh}#appReg.on{display:block}
+.rg-wrap{max-width:520px;margin:0 auto;padding:16px 16px 40px}
+.rg-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}.rg-top img{height:40px;background:#fff;border-radius:8px;padding:3px 5px}
+.rg-top b{display:block;color:var(--green-900);font-size:.95rem}.rg-top span{font-size:.78rem;color:var(--ink-3)}
+.rg-head{background:linear-gradient(135deg,var(--green-900),var(--green-800));color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.rg-head b{display:block;font-size:1.05rem}.rg-head span{font-size:.82rem;color:rgba(255,255,255,.8)}
+.rg-form{background:#fff;border:1px solid var(--line,#E4E2D7);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.rg-form .flabel{margin-top:8px}.rg-form .finput{font-size:16px;min-height:46px}
+.rg-big{font-size:22px!important;letter-spacing:.12em;text-align:center;font-weight:800}
+.rg-tipo{display:flex;gap:8px;margin-top:6px}.rg-tipo button{flex:1;min-height:44px;border:1.5px solid var(--line,#E4E2D7);background:#fff;border-radius:12px;font-weight:700;font-size:.9rem;cursor:pointer}
+.rg-tipo button.sel{border-color:var(--green-700);background:#EAF6EC;color:var(--green-900)}
+.rg-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rg-aut{margin-top:12px;font-size:.8rem;line-height:1.45}
+.rg-btn{margin-top:12px;min-height:52px;font-size:1.02rem}
+.rg-msg{border-radius:10px;padding:10px 12px;font-size:.88rem;margin-top:10px}.rg-msg.ok{background:#EAF6EC;color:#164A26;border:1px solid #BFE3C4}.rg-msg.bad{background:#FDECEA;color:#B03A2E;border:1px solid #F5C2BC}
+.rg-ft{text-align:center;font-size:.76rem;color:var(--ink-3);margin-top:16px}
+.qr-box{display:flex;flex-direction:column;align-items:center;background:#F4F2EA;border-radius:12px;padding:16px}
+.qr-canvas{width:240px;height:240px;border-radius:8px;box-shadow:0 6px 18px rgba(15,51,25,.15)}
+.qr-who{margin-top:10px;font-size:.92rem}.qr-url{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--ink-3);word-break:break-all;text-align:center;margin-top:4px}
+.rg-2>div{min-width:0}.rg-2 .finput{width:100%;min-width:0;box-sizing:border-box}
